@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Minha área · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+<div class="app-shell" id="conteudo">
+  <aside class="sidebar">
+    <a class="sidebar-brand" href="{{ url_for('physiotherapist_dashboard') }}" aria-label="FisioBase, início">
+      <span class="brand-mark brand-mark--small" aria-hidden="true">
+        <span class="brand-mark__dot"></span>
+        <span class="brand-mark__line"></span>
+      </span>
+      <span>Fisio<span>Base</span></span>
+    </a>
+
+    <div class="sidebar-user">
+      <span class="avatar avatar--green" aria-hidden="true">{{ current_user.nome[0] }}</span>
+      <div>
+        <strong>{{ current_user.nome }}</strong>
+        <span>Fisioterapeuta</span>
+      </div>
+    </div>
+
+    <nav class="main-nav" aria-label="Navegação principal">
+      <p class="nav-label">Minha rotina</p>
+      <a class="nav-item nav-item--active" href="{{ url_for('physiotherapist_dashboard') }}">
+        <span class="nav-icon" aria-hidden="true">⌂</span>
+        Minha área
+      </a>
+      <p class="nav-label">Atendimento</p>
+      <a class="nav-item nav-item--disabled" href="#" aria-disabled="true">
+        <span class="nav-icon" aria-hidden="true">◷</span>
+        Minha agenda
+        <span class="nav-soon">Em breve</span>
+      </a>
+      <a class="nav-item nav-item--disabled" href="#" aria-disabled="true">
+        <span class="nav-icon" aria-hidden="true">□</span>
+        Meus pacientes
+        <span class="nav-soon">Em breve</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="sidebar-status">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span>Sistema operacional</span>
+      </div>
+      <form method="post" action="{{ url_for('logout') }}">
+        <button class="nav-item nav-item--logout" type="submit">
+          <span class="nav-icon" aria-hidden="true">↪</span>
+          Sair da conta
+        </button>
+      </form>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div>
+        <p class="breadcrumb">Minha rotina <span>/</span> Minha área</p>
+        <h1>Olá, {{ current_user.nome.split()[0] }}.</h1>
+      </div>
+      <div class="topbar-date">
+        <span class="date-icon" aria-hidden="true">◷</span>
+        <span>Área do profissional</span>
+      </div>
+    </header>
+
+    <section class="welcome-banner welcome-banner--green" aria-label="Resumo pessoal">
+      <div>
+        <p class="eyebrow">Seu espaço de trabalho</p>
+        <h2>Seu cuidado, no seu ritmo.</h2>
+        <p>Acompanhe sua agenda e seus pacientes em um só lugar.</p>
+      </div>
+      <span class="welcome-art" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </span>
+    </section>
+
+    <section class="stats-grid" aria-label="Resumo da rotina">
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Atendimentos hoje</span>
+          <span class="stat-icon stat-icon--blue" aria-hidden="true">◷</span>
+        </div>
+        <strong class="stat-value">—</strong>
+        <span class="stat-caption">agenda em preparação</span>
+      </article>
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Meus pacientes</span>
+          <span class="stat-icon stat-icon--green" aria-hidden="true">+</span>
+        </div>
+        <strong class="stat-value">—</strong>
+        <span class="stat-caption">cadastro na próxima etapa</span>
+      </article>
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Presenças do mês</span>
+          <span class="stat-icon stat-icon--yellow" aria-hidden="true">✓</span>
+        </div>
+        <strong class="stat-value">—</strong>
+        <span class="stat-caption">registro de atendimentos em breve</span>
+      </article>
+    </section>
+
+    <section class="content-grid content-grid--single">
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow eyebrow--muted">Seu próximo módulo</p>
+            <h2>Área pronta para evoluir</h2>
+          </div>
+          <span class="role-badge role-badge--fisioterapeuta">Acesso restrito</span>
+        </div>
+        <div class="empty-state">
+          <div class="empty-state__icon" aria-hidden="true">+</div>
+          <h3>Agenda e pacientes entram na próxima etapa</h3>
+          <p>
+            Seu perfil já está protegido. Quando os módulos clínicos forem adicionados,
+            você verá somente a sua agenda e os seus próprios pacientes aqui.
+          </p>
+        </div>
+      </article>
+    </section>
+  </main>
+</div>
+{% endblock %}

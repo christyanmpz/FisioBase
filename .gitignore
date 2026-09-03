@@ -47,3 +47,10 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Python / Flask
+__pycache__/
+*.py[cod]
+.pythonlibs/
+.venv/
+instance/*.db

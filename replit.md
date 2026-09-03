@@ -1,44 +1,53 @@
-# [Project name]
+# FisioBase
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Base inicial de um sistema web para gestão de um consultório de fisioterapia, com autenticação e permissões por perfil.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `python app.py` — run the Flask application
+- `pnpm run typecheck` — typecheck the existing TypeScript workspace packages
+- The Flask app uses `PORT` when provided and defaults to port 8000.
+- `SESSION_SECRET` is used as the Flask session secret when provided.
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Python 3.11
+- Flask 3
+- SQLite + Flask-SQLAlchemy
+- Flask-Login
+- HTML, CSS e JavaScript
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `app.py` — criação da aplicação, rotas e controle de permissões
+- `models.py` — configuração do ORM e modelo `usuarios`
+- `templates/` — telas de login, dashboards e erros
+- `static/` — estilos e comportamento da interface
+- `instance/fisioterapia.db` — banco SQLite criado automaticamente
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- A autenticação local foi usada porque o briefing acadêmico escolheu explicitamente Flask-Login.
+- Senhas nunca são persistidas em texto puro; o modelo usa hash do Werkzeug.
+- O controle de acesso é feito por perfil em cada rota protegida, com resposta 403 para perfis incompatíveis.
+- A base começa com SQLite para facilitar o desenvolvimento e a evolução posterior.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Login com perfis ADMIN e FISIOTERAPEUTA
+- Dashboard administrativo com resumo dos usuários
+- Dashboard restrito do fisioterapeuta
+- Logout e mensagens de acesso
+- Base preparada para pacientes, agenda e relatórios
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- O usuário solicitou que a primeira etapa fosse interrompida após a base de login para revisar a estrutura antes dos módulos seguintes.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- O seed cria as contas de demonstração somente quando a tabela `usuarios` está vazia.
+- Para redefinir os dados iniciais localmente, remova o arquivo `instance/fisioterapia.db` e reinicie a aplicação.
 
 ## Pointers
 

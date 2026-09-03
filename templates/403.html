@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Acesso bloqueado · FisioBase{% endblock %}
+{% block body_class %}simple-page{% endblock %}
+
+{% block body %}
+<main class="simple-shell" id="conteudo">
+  <div class="simple-card">
+    <div class="simple-icon simple-icon--error" aria-hidden="true">!</div>
+    <p class="eyebrow eyebrow--muted">Acesso protegido</p>
+    <h1>Você não tem permissão para esta área.</h1>
+    <p>O seu perfil só pode acessar os recursos destinados à sua função no consultório.</p>
+    <a class="button button--primary" href="{{ url_for('index') }}">Voltar para minha área <span aria-hidden="true">→</span></a>
+  </div>
+</main>
+{% endblock %}

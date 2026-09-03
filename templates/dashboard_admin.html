@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Admin · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+<div class="app-shell" id="conteudo">
+  <aside class="sidebar">
+    <a class="sidebar-brand" href="{{ url_for('admin_dashboard') }}" aria-label="FisioBase, início">
+      <span class="brand-mark brand-mark--small" aria-hidden="true">
+        <span class="brand-mark__dot"></span>
+        <span class="brand-mark__line"></span>
+      </span>
+      <span>Fisio<span>Base</span></span>
+    </a>
+
+    <div class="sidebar-user">
+      <span class="avatar avatar--admin" aria-hidden="true">{{ current_user.nome[0] }}</span>
+      <div>
+        <strong>{{ current_user.nome }}</strong>
+        <span>Administrador</span>
+      </div>
+    </div>
+
+    <nav class="main-nav" aria-label="Navegação principal">
+      <p class="nav-label">Visão geral</p>
+      <a class="nav-item nav-item--active" href="{{ url_for('admin_dashboard') }}">
+        <span class="nav-icon" aria-hidden="true">⌂</span>
+        Dashboard
+      </a>
+      <p class="nav-label">Gestão</p>
+      <a class="nav-item nav-item--disabled" href="#" aria-disabled="true">
+        <span class="nav-icon" aria-hidden="true">◌</span>
+        Profissionais
+        <span class="nav-soon">Em breve</span>
+      </a>
+      <a class="nav-item nav-item--disabled" href="#" aria-disabled="true">
+        <span class="nav-icon" aria-hidden="true">□</span>
+        Pacientes
+        <span class="nav-soon">Em breve</span>
+      </a>
+      <a class="nav-item nav-item--disabled" href="#" aria-disabled="true">
+        <span class="nav-icon" aria-hidden="true">▥</span>
+        Relatórios
+        <span class="nav-soon">Em breve</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="sidebar-status">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span>Sistema operacional</span>
+      </div>
+      <form method="post" action="{{ url_for('logout') }}">
+        <button class="nav-item nav-item--logout" type="submit">
+          <span class="nav-icon" aria-hidden="true">↪</span>
+          Sair da conta
+        </button>
+      </form>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div>
+        <p class="breadcrumb">Visão geral <span>/</span> Dashboard</p>
+        <h1>Bom dia, {{ current_user.nome.split()[0] }}.</h1>
+      </div>
+      <div class="topbar-date">
+        <span class="date-icon" aria-hidden="true">◷</span>
+        <span>Visão administrativa</span>
+      </div>
+    </header>
+
+    <section class="welcome-banner" aria-label="Resumo do sistema">
+      <div>
+        <p class="eyebrow">Painel do administrador</p>
+        <h2>O cuidado começa pela organização.</h2>
+        <p>Tenha uma visão clara da operação do consultório em um só lugar.</p>
+      </div>
+      <span class="welcome-art" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </span>
+    </section>
+
+    <section class="stats-grid" aria-label="Resumo dos usuários">
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Usuários ativos</span>
+          <span class="stat-icon stat-icon--blue" aria-hidden="true">◎</span>
+        </div>
+        <strong class="stat-value">{{ profissionais|length }}</strong>
+        <span class="stat-caption">contas cadastradas</span>
+      </article>
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Administradores</span>
+          <span class="stat-icon stat-icon--yellow" aria-hidden="true">◆</span>
+        </div>
+        <strong class="stat-value">{{ total_admins }}</strong>
+        <span class="stat-caption">com acesso total</span>
+      </article>
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Fisioterapeutas</span>
+          <span class="stat-icon stat-icon--green" aria-hidden="true">+</span>
+        </div>
+        <strong class="stat-value">{{ total_fisioterapeutas }}</strong>
+        <span class="stat-caption">profissionais da equipe</span>
+      </article>
+    </section>
+
+    <section class="content-grid">
+      <article class="panel panel--wide">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow eyebrow--muted">Controle de acesso</p>
+            <h2>Usuários do sistema</h2>
+          </div>
+          <span class="panel-count">{{ profissionais|length }} registros</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <caption class="sr-only">Lista de usuários cadastrados no sistema</caption>
+            <thead>
+              <tr>
+                <th scope="col">Profissional</th>
+                <th scope="col">E-mail</th>
+                <th scope="col">Perfil</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for profissional in profissionais %}
+              <tr>
+                <td>
+                  <div class="table-person">
+                    <span class="avatar avatar--table {% if profissional.tipo_usuario == 'fisioterapeuta' %}avatar--green{% endif %}" aria-hidden="true">{{ profissional.nome[0] }}</span>
+                    <strong>{{ profissional.nome }}</strong>
+                  </div>
+                </td>
+                <td class="muted-cell">{{ profissional.email }}</td>
+                <td>
+                  <span class="role-badge role-badge--{{ profissional.tipo_usuario }}">
+                    {{ "Administrador" if profissional.tipo_usuario == "admin" else "Fisioterapeuta" }}
+                  </span>
+                </td>
+                <td><span class="status-badge"><span class="status-dot" aria-hidden="true"></span>Ativo</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <aside class="panel next-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow eyebrow--muted">Próximos passos</p>
+            <h2>Base inicial</h2>
+          </div>
+        </div>
+        <div class="roadmap">
+          <div class="roadmap-item roadmap-item--done">
+            <span class="roadmap-marker" aria-hidden="true">✓</span>
+            <div><strong>Autenticação</strong><span>Concluído</span></div>
+          </div>
+          <div class="roadmap-item roadmap-item--current">
+            <span class="roadmap-marker" aria-hidden="true">2</span>
+            <div><strong>Pacientes</strong><span>Próxima etapa</span></div>
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-marker" aria-hidden="true">3</span>
+            <div><strong>Agenda</strong><span>Planejado</span></div>
+          </div>
+        </div>
+        <div class="panel-note">A estrutura está pronta para receber os próximos módulos do projeto.</div>
+      </aside>
+    </section>
+  </main>
+</div>
+{% endblock %}

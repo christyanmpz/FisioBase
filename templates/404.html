@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Página não encontrada · FisioBase{% endblock %}
+{% block body_class %}simple-page{% endblock %}
+
+{% block body %}
+<main class="simple-shell" id="conteudo">
+  <div class="simple-card">
+    <div class="simple-icon" aria-hidden="true">?</div>
+    <p class="eyebrow eyebrow--muted">Ops</p>
+    <h1>Essa página não existe.</h1>
+    <p>O endereço acessado não faz parte da base atual do sistema.</p>
+    <a class="button button--primary" href="{{ url_for('index') }}">Ir para o início <span aria-hidden="true">→</span></a>
+  </div>
+</main>
+{% endblock %}
