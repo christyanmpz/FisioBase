@@ -1,27 +1,31 @@
 kind = "api"
-previewPath = "/"
-title = "FisioBase"
+previewPath = "/api"
+title = "FisioBase API"
 version = "1.0.0"
 id = "3B4_FFSkEVBkAeYMFRJ2e"
 
 [[services]]
-localPort = 5000
-name = "FisioBase"
-paths = ["/"]
+localPort = 8080
+name = "API Server"
+paths = ["/api"]
 
 [services.development]
-run = "python ../../app.py"
+run = "pnpm --filter @workspace/api-server run dev"
 
 [services.production]
 
 [services.production.build]
-args = ["python", "-m", "compileall", "app.py", "models.py"]
+args = ["pnpm", "--filter", "@workspace/api-server", "run", "build"]
+
+[services.production.build.env]
+NODE_ENV = "production"
 
 [services.production.run]
-args = ["gunicorn", "--chdir", "../..", "--bind", "0.0.0.0:5000", "app:app"]
+args = ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
 
 [services.production.run.env]
-PORT = "5000"
+PORT = "8080"
+NODE_ENV = "production"
 
 [services.production.health.startup]
-path = "/login"
+path = "/api/healthz"
