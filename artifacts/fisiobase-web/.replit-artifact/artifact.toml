@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "FisioBase"
+description = "Interface web do sistema de gestão de um consultório de fisioterapia, com login seguro e dashboards separados para administradores e fisioterapeutas."
+version = "1.0.0"
+id = "artifacts/fisiobase-web"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18551
+
+[services.development]
+run = "pnpm --filter @workspace/fisiobase-web run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/fisiobase-web", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/fisiobase-web/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18551"
+BASE_PATH = "/"
