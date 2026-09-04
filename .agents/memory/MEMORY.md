@@ -1,0 +1,1 @@
+- [Flask preview routing](flask-preview-routing.md) — registered artifact service and working-directory-relative entrypoint are required for the preview domain.

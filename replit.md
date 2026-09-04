@@ -6,7 +6,7 @@ Base inicial de um sistema web para gestão de um consultório de fisioterapia, 
 
 - `python app.py` — run the Flask application
 - `pnpm run typecheck` — typecheck the existing TypeScript workspace packages
-- The Flask app uses `PORT` when provided and defaults to port 8000.
+- The Flask app uses `PORT` when provided and defaults to port 5000.
 - `SESSION_SECRET` is used as the Flask session secret when provided.
 
 ## Stack
