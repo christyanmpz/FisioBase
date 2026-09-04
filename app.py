@@ -4,7 +4,7 @@ from functools import wraps
 import os
 from pathlib import Path
 
-from flask import Flask, abort, flash, redirect, render_template, request, url_for
+from flask import Flask, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import (
     LoginManager,
     current_user,
@@ -92,7 +92,92 @@ def role_required(role: str):
     return decorator
 
 
+def user_payload(user: User) -> dict[str, str | int]:
+    """Representa um usuário sem expor o hash de senha ao cliente."""
+    return {
+        "id": user.id,
+        "nome": user.nome,
+        "email": user.email,
+        "tipo_usuario": user.tipo_usuario,
+    }
+
+
 def register_routes(app: Flask) -> None:
+    @app.post("/api/auth/login")
+    def api_login():
+        """Autentica o front React usando a sessão real do Flask-Login."""
+        if current_user.is_authenticated:
+            user = current_user
+            return jsonify(
+                {
+                    "authenticated": True,
+                    "user": user_payload(user),
+                    "redirect_path": url_for(user.dashboard_endpoint),
+                }
+            )
+
+        data = request.get_json(silent=True) or request.form
+        email = str(data.get("email", "")).strip().lower()
+        password = str(data.get("senha", ""))
+        user = db.session.scalar(db.select(User).where(User.email == email))
+
+        if user is None or not user.check_password(password):
+            return (
+                jsonify(
+                    {
+                        "authenticated": False,
+                        "message": "E-mail ou senha incorretos. Confira os dados e tente novamente.",
+                    }
+                ),
+                401,
+            )
+
+        login_user(user)
+        return jsonify(
+            {
+                "authenticated": True,
+                "user": user_payload(user),
+                "redirect_path": url_for(user.dashboard_endpoint),
+            }
+        )
+
+    @app.get("/api/auth/session")
+    def api_session():
+        """Retorna a identidade vinculada ao cookie de sessão atual."""
+        if not current_user.is_authenticated:
+            return jsonify({"authenticated": False, "user": None})
+
+        return jsonify({"authenticated": True, "user": user_payload(current_user)})
+
+    @app.post("/api/auth/logout")
+    def api_logout():
+        """Encerra a sessão Flask-Login sem renderizar uma página HTML."""
+        if current_user.is_authenticated:
+            logout_user()
+        return jsonify({"authenticated": False})
+
+    @app.get("/api/admin/users")
+    @role_required("admin")
+    def api_admin_users():
+        """Fornece ao dashboard administrativo os usuários persistidos."""
+        profissionais = User.query.order_by(User.nome).all()
+        return jsonify(
+            {
+                "users": [user_payload(profissional) for profissional in profissionais],
+                "totals": {
+                    "users": len(profissionais),
+                    "admins": sum(
+                        profissional.tipo_usuario == "admin"
+                        for profissional in profissionais
+                    ),
+                    "fisioterapeutas": sum(
+                        profissional.tipo_usuario == "fisioterapeuta"
+                        for profissional in profissionais
+                    ),
+                },
+            }
+        )
+
     @app.get("/")
     def index():
         if not current_user.is_authenticated:

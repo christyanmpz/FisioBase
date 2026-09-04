@@ -8,6 +8,7 @@ Base inicial de um sistema web para gestão de um consultório de fisioterapia, 
 - `pnpm run typecheck` — typecheck the existing TypeScript workspace packages
 - The Flask app uses `PORT` when provided and defaults to port 5000.
 - `SESSION_SECRET` is used as the Flask session secret when provided.
+- The managed API artifact runs the Flask app from the repository root and exposes it under `/api`.
 
 ## Stack
 
@@ -23,6 +24,8 @@ Base inicial de um sistema web para gestão de um consultório de fisioterapia, 
 - `models.py` — configuração do ORM e modelo `usuarios`
 - `templates/` — telas de login, dashboards e erros
 - `static/` — estilos e comportamento da interface
+- `artifacts/fisiobase-web/src/App.tsx` — interface React/Vite conectada à sessão Flask
+- `artifacts/api-server/.replit-artifact/artifact.toml` — roteamento do serviço Flask em `/api`
 - `instance/fisioterapia.db` — banco SQLite criado automaticamente
 
 ## Architecture decisions
@@ -31,6 +34,8 @@ Base inicial de um sistema web para gestão de um consultório de fisioterapia, 
 - Senhas nunca são persistidas em texto puro; o modelo usa hash do Werkzeug.
 - O controle de acesso é feito por perfil em cada rota protegida, com resposta 403 para perfis incompatíveis.
 - A base começa com SQLite para facilitar o desenvolvimento e a evolução posterior.
+- O front usa `credentials: include` e os endpoints JSON do Flask para compartilhar o cookie real de sessão no mesmo domínio do preview.
+- O hash da senha nunca é enviado ao front; respostas JSON expõem somente id, nome, e-mail e perfil.
 
 ## Product
 

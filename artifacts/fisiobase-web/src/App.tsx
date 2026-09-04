@@ -13,16 +13,64 @@ type User = {
   id: number;
   nome: string;
   email: string;
-  senha: string;
   tipo_usuario: UserRole;
 };
 
-const DEMO_USERS: User[] = [
-  { id: 1, nome: 'Marina Costa', email: 'admin@fisio.com', senha: 'Admin@123', tipo_usuario: 'admin' },
-  { id: 2, nome: 'Rafael Lima', email: 'fisio@fisio.com', senha: 'Fisio@123', tipo_usuario: 'fisioterapeuta' },
+type DemoCredentials = {
+  label: string;
+  email: string;
+  senha: string;
+};
+
+type SessionResponse = {
+  authenticated: boolean;
+  user: User | null;
+};
+
+type LoginResponse = {
+  authenticated: true;
+  user: User;
+  redirect_path: string;
+};
+
+type AdminOverview = {
+  users: User[];
+  totals: {
+    users: number;
+    admins: number;
+    fisioterapeutas: number;
+  };
+};
+
+const DEMO_CREDENTIALS: DemoCredentials[] = [
+  { label: 'Admin', email: 'admin@fisio.com', senha: 'Admin@123' },
+  { label: 'Fisio', email: 'fisio@fisio.com', senha: 'Fisio@123' },
 ];
 
 const queryClient = new QueryClient();
+const API_BASE_PATH = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/api`;
+
+async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${API_BASE_PATH}${path}`, {
+    ...options,
+    credentials: 'include',
+    headers: {
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...options.headers,
+    },
+  });
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      payload && typeof payload.message === 'string'
+        ? payload.message
+        : 'Não foi possível concluir a operação. Tente novamente.',
+    );
+  }
+
+  return payload as T;
+}
 
 function initials(nome: string) {
   return nome.split(' ').slice(0, 2).map((part) => part[0]).join('').toUpperCase();
@@ -42,33 +90,41 @@ function Brand({ small = false }: { small?: boolean }) {
   );
 }
 
-function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
+function LoginPage({ onLogin, connectionError = '' }: { onLogin: (user: User) => void; connectionError?: string }) {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(connectionError);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [, setLocation] = useLocation();
 
-  const fillDemo = (user: User) => {
-    setEmail(user.email);
-    setSenha(user.senha);
+  const fillDemo = (credentials: DemoCredentials) => {
+    setEmail(credentials.email);
+    setSenha(credentials.senha);
     setError('');
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
-    const match = DEMO_USERS.find((user) => user.email.toLowerCase() === email.trim().toLowerCase() && user.senha === senha);
-    window.setTimeout(() => {
+    setError('');
+
+    try {
+      const result = await apiRequest<LoginResponse>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: email.trim(), senha }),
+      });
+      onLogin(result.user);
+      setLocation(result.redirect_path || dashboardPath(result.user.tipo_usuario));
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Não foi possível entrar no sistema. Tente novamente.',
+      );
+    } finally {
       setIsSubmitting(false);
-      if (!match) {
-        setError('Não encontramos uma conta com esses dados. Confira o e-mail e a senha.');
-        return;
-      }
-      onLogin(match);
-      setLocation(dashboardPath(match.tipo_usuario));
-    }, 220);
+    }
   };
 
   return (
@@ -94,9 +150,9 @@ function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
             <p>Entre com suas credenciais para acessar o FisioBase.</p>
           </div>
 
-          <div className="fb-alert fb-alert--info" role="status" data-testid="status-demo-mode">
+          <div className="fb-alert fb-alert--info" role="status" data-testid="status-api-mode">
             <Activity size={16} aria-hidden="true" />
-            <span>Demonstração local ativa. A conexão com o Flask será adicionada na próxima etapa.</span>
+            <span>Autenticação segura conectada ao backend Flask.</span>
           </div>
 
           {error && (
@@ -159,16 +215,20 @@ function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
             </button>
           </form>
 
-          <div className="demo-access" aria-label="Acessos de demonstração" data-testid="panel-demo-access">
-            <p className="demo-access-title">Acessos de demonstração</p>
-            <button type="button" className="demo-row demo-row-button" data-testid="button-demo-admin" onClick={() => fillDemo(DEMO_USERS[0])}>
-              <span><strong>Admin</strong> · admin@fisio.com</span>
-              <span className="demo-password">Admin@123</span>
-            </button>
-            <button type="button" className="demo-row demo-row-button" data-testid="button-demo-fisio" onClick={() => fillDemo(DEMO_USERS[1])}>
-              <span><strong>Fisio</strong> · fisio@fisio.com</span>
-              <span className="demo-password">Fisio@123</span>
-            </button>
+          <div className="demo-access" aria-label="Contas de demonstração" data-testid="panel-demo-access">
+            <p className="demo-access-title">Contas de demonstração no banco</p>
+            {DEMO_CREDENTIALS.map((credentials) => (
+              <button
+                key={credentials.email}
+                type="button"
+                className="demo-row demo-row-button"
+                data-testid={`button-demo-${credentials.label.toLowerCase()}`}
+                onClick={() => fillDemo(credentials)}
+              >
+                <span><strong>{credentials.label}</strong> · {credentials.email}</span>
+                <span className="demo-password">{credentials.senha}</span>
+              </button>
+            ))}
           </div>
           <p className="login-footer">Ambiente acadêmico · Projeto Integrador</p>
         </div>
@@ -177,12 +237,12 @@ function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
   );
 }
 
-function Sidebar({ user, onLogout }: { user: User; onLogout: () => void }) {
+function Sidebar({ user, onLogout }: { user: User; onLogout: () => Promise<void> }) {
   const [, setLocation] = useLocation();
   const isAdmin = user.tipo_usuario === 'admin';
   const home = dashboardPath(user.tipo_usuario);
-  const logout = () => {
-    onLogout();
+  const logout = async () => {
+    await onLogout();
     setLocation('/');
   };
 
@@ -235,7 +295,7 @@ function Sidebar({ user, onLogout }: { user: User; onLogout: () => void }) {
   );
 }
 
-function DashboardLayout({ user, onLogout, children }: { user: User; onLogout: () => void; children: ReactNode }) {
+function DashboardLayout({ user, onLogout, children }: { user: User; onLogout: () => Promise<void>; children: ReactNode }) {
   return (
     <div className="app-shell fb-page fb-noise">
       <Sidebar user={user} onLogout={onLogout} />
@@ -257,9 +317,9 @@ function DashboardTop({ user, label, title, context }: { user: User; label: stri
           <span>{context}</span>
         </div>
       </header>
-      <div className="demo-banner fb-reveal fb-reveal-delay-1" role="status" data-testid="status-dashboard-demo">
+      <div className="demo-banner fb-reveal fb-reveal-delay-1" role="status" data-testid="status-session">
         <Activity size={14} aria-hidden="true" />
-        <span>Modo demonstração · dados locais para apresentação do produto</span>
+        <span>Sessão ativa no Flask · dados da conta autenticada</span>
       </div>
     </>
   );
@@ -291,32 +351,71 @@ function StatCard({ label, value, caption, icon: Icon, tone }: { label: string; 
   );
 }
 
-function AdminDashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
+function AdminDashboard({ user, onLogout }: { user: User; onLogout: () => Promise<void> }) {
+  const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const [isLoadingOverview, setIsLoadingOverview] = useState(true);
+  const [overviewError, setOverviewError] = useState('');
+
+  useEffect(() => {
+    let isCurrent = true;
+    apiRequest<AdminOverview>('/admin/users')
+      .then((result) => {
+        if (!isCurrent) return;
+        setOverview(result);
+      })
+      .catch((requestError) => {
+        if (!isCurrent) return;
+        setOverviewError(
+          requestError instanceof Error
+            ? requestError.message
+            : 'Não foi possível carregar os usuários persistidos.',
+        );
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoadingOverview(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
+  const users = overview?.users ?? [];
+  const totals = overview?.totals;
+
   return (
     <DashboardLayout user={user} onLogout={onLogout}>
       <DashboardTop user={user} label="Visão geral" title="Dashboard" context="Visão administrativa" />
       <WelcomeBanner />
       <section className="stats-grid" aria-label="Resumo dos usuários">
-        <StatCard label="Usuários ativos" value={String(DEMO_USERS.length)} caption="contas cadastradas" icon={Users} tone="blue" />
-        <StatCard label="Administradores" value="1" caption="com acesso total" icon={ShieldCheck} tone="yellow" />
-        <StatCard label="Fisioterapeutas" value="1" caption="profissional da equipe" icon={Stethoscope} tone="green" />
+        <StatCard label="Usuários ativos" value={totals ? String(totals.users) : '—'} caption="contas cadastradas" icon={Users} tone="blue" />
+        <StatCard label="Administradores" value={totals ? String(totals.admins) : '—'} caption="com acesso total" icon={ShieldCheck} tone="yellow" />
+        <StatCard label="Fisioterapeutas" value={totals ? String(totals.fisioterapeutas) : '—'} caption="profissionais da equipe" icon={Stethoscope} tone="green" />
       </section>
       <section className="content-grid">
         <article className="panel fb-reveal fb-reveal-delay-3">
           <div className="panel-heading">
             <div><p className="eyebrow-muted">Controle de acesso</p><h2>Usuários do sistema</h2></div>
-            <span className="panel-count" data-testid="text-user-count">{DEMO_USERS.length} registros</span>
+            <span className="panel-count" data-testid="text-user-count">
+              {overview ? `${overview.users.length} registros` : isLoadingOverview ? 'Carregando…' : 'Indisponível'}
+            </span>
           </div>
           <div className="table-wrap">
             <table>
               <caption className="sr-only">Lista de usuários cadastrados no sistema</caption>
               <thead><tr><th scope="col">Profissional</th><th scope="col">E-mail</th><th scope="col">Perfil</th><th scope="col">Status</th></tr></thead>
               <tbody>
-                {DEMO_USERS.map((demoUser) => (
-                  <tr key={demoUser.id} data-testid={`row-user-${demoUser.id}`}>
-                    <td><div className="table-person"><span className={`fb-avatar avatar-table ${demoUser.tipo_usuario === 'admin' ? 'fb-avatar--admin' : ''}`} aria-hidden="true">{initials(demoUser.nome)}</span><strong>{demoUser.nome}</strong></div></td>
-                    <td className="muted-cell">{demoUser.email}</td>
-                    <td><span className={`role-badge role-badge--${demoUser.tipo_usuario}`}>{demoUser.tipo_usuario === 'admin' ? 'Administrador' : 'Fisioterapeuta'}</span></td>
+                {isLoadingOverview && (
+                  <tr><td colSpan={4} className="muted-cell">Carregando usuários persistidos…</td></tr>
+                )}
+                {!isLoadingOverview && overviewError && (
+                  <tr><td colSpan={4}><div className="fb-alert fb-alert--error" role="alert">{overviewError}</div></td></tr>
+                )}
+                {!isLoadingOverview && !overviewError && users.map((systemUser) => (
+                  <tr key={systemUser.id} data-testid={`row-user-${systemUser.id}`}>
+                    <td><div className="table-person"><span className={`fb-avatar avatar-table ${systemUser.tipo_usuario === 'admin' ? 'fb-avatar--admin' : ''}`} aria-hidden="true">{initials(systemUser.nome)}</span><strong>{systemUser.nome}</strong></div></td>
+                    <td className="muted-cell">{systemUser.email}</td>
+                    <td><span className={`role-badge role-badge--${systemUser.tipo_usuario}`}>{systemUser.tipo_usuario === 'admin' ? 'Administrador' : 'Fisioterapeuta'}</span></td>
                     <td><span className="status-badge"><span className="status-dot" aria-hidden="true" />Ativo</span></td>
                   </tr>
                 ))}
@@ -338,7 +437,7 @@ function AdminDashboard({ user, onLogout }: { user: User; onLogout: () => void }
   );
 }
 
-function PhysiotherapistDashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
+function PhysiotherapistDashboard({ user, onLogout }: { user: User; onLogout: () => Promise<void> }) {
   return (
     <DashboardLayout user={user} onLogout={onLogout}>
       <DashboardTop user={user} label="Minha rotina" title="Minha área" context="Área do profissional" />
@@ -390,30 +489,59 @@ function PageLoading() {
 
 function Router() {
   const [location, setLocation] = useLocation();
-  const [user, setUser] = useState<User | null>(() => {
-    const stored = window.localStorage.getItem('fisiobase-demo-user');
-    if (!stored) return null;
-    try { return JSON.parse(stored) as User; } catch { return null; }
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [isSessionLoading, setIsSessionLoading] = useState(true);
+  const [sessionError, setSessionError] = useState('');
 
   useEffect(() => {
-    if (location === '/' && user) setLocation(dashboardPath(user.tipo_usuario));
-  }, [location, setLocation, user]);
+    let isCurrent = true;
+    apiRequest<SessionResponse>('/auth/session')
+      .then((result) => {
+        if (!isCurrent) return;
+        setUser(result.authenticated ? result.user : null);
+        setSessionError('');
+      })
+      .catch((requestError) => {
+        if (!isCurrent) return;
+        setUser(null);
+        setSessionError(
+          requestError instanceof Error
+            ? requestError.message
+            : 'Não foi possível conectar ao backend Flask.',
+        );
+      })
+      .finally(() => {
+        if (isCurrent) setIsSessionLoading(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isSessionLoading && user && (location === '/' || location === '/login')) {
+      setLocation(dashboardPath(user.tipo_usuario));
+    }
+  }, [isSessionLoading, location, setLocation, user]);
 
   const login = (nextUser: User) => {
     setUser(nextUser);
-    window.localStorage.setItem('fisiobase-demo-user', JSON.stringify(nextUser));
   };
-  const logout = () => {
-    setUser(null);
-    window.localStorage.removeItem('fisiobase-demo-user');
+  const logout = async () => {
+    try {
+      await apiRequest('/auth/logout', { method: 'POST' });
+    } finally {
+      setUser(null);
+      setSessionError('');
+    }
   };
 
   return (
     <ErrorBoundary resetKey={location}>
       <Switch>
-        <Route path="/" component={() => user ? <PageLoading /> : <LoginPage onLogin={login} />} />
-        <Route path="/login" component={() => <LoginPage onLogin={login} />} />
+        <Route path="/" component={() => isSessionLoading ? <PageLoading /> : user ? <PageLoading /> : <LoginPage onLogin={login} connectionError={sessionError} />} />
+        <Route path="/login" component={() => isSessionLoading ? <PageLoading /> : <LoginPage onLogin={login} connectionError={sessionError} />} />
         <Route path="/dashboard/admin" component={() => user ? (user.tipo_usuario === 'admin' ? <AdminDashboard user={user} onLogout={logout} /> : <ForbiddenPage user={user} target="o painel administrativo" />) : <ForbiddenPage user={null} target="o painel administrativo" />} />
         <Route path="/dashboard/fisioterapeuta" component={() => user ? (user.tipo_usuario === 'fisioterapeuta' ? <PhysiotherapistDashboard user={user} onLogout={logout} /> : <ForbiddenPage user={user} target="a área do fisioterapeuta" />) : <ForbiddenPage user={null} target="a área do fisioterapeuta" />} />
         <Route path="/forbidden" component={() => <ForbiddenPage user={user} />} />
