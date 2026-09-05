@@ -13,7 +13,7 @@ paths = ["/api"]
 run = "python ../../app.py"
 
 [services.production.run]
-args = ["gunicorn", "--chdir", "../..", "--bind", "0.0.0.0:5000", "app:app"]
+args = ["gunicorn", "--chdir", "../..", "--bind", "0.0.0.0:5000", "app:create_app()"]
 
 [services.production.run.env]
 PORT = "5000"

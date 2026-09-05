@@ -2,7 +2,6 @@
 
 from functools import wraps
 import os
-from pathlib import Path
 
 from flask import Flask, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import (
@@ -12,11 +11,10 @@ from flask_login import (
     login_user,
     logout_user,
 )
+from sqlalchemy.pool import NullPool
 
 from models import User, db
 
-
-BASE_DIR = Path(__file__).resolve().parent
 
 login_manager = LoginManager()
 login_manager.login_view = "login"
@@ -24,24 +22,54 @@ login_manager.login_message = "Entre para acessar esta área."
 login_manager.login_message_category = "info"
 
 
-def create_app() -> Flask:
+def create_app(test_config: dict | None = None) -> Flask:
     app = Flask(__name__)
-    app.config.update(
-        SECRET_KEY=os.environ.get("SESSION_SECRET", "chave-local-de-desenvolvimento"),
-        SQLALCHEMY_DATABASE_URI=f"sqlite:///{BASE_DIR / 'instance' / 'fisioterapia.db'}",
+    app.config.from_mapping(
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         REMEMBER_COOKIE_HTTPONLY=True,
     )
 
-    (BASE_DIR / "instance").mkdir(exist_ok=True)
+    if test_config is None:
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            raise RuntimeError(
+                "DATABASE_URL não está configurada; a aplicação não iniciará sem um banco PostgreSQL."
+            )
+
+        session_secret = os.getenv("SESSION_SECRET")
+        if not session_secret:
+            raise RuntimeError(
+                "SESSION_SECRET não está configurada; a aplicação não iniciará sem uma chave de sessão."
+            )
+
+        if database_url.startswith("postgres://"):
+            database_url = "postgresql://" + database_url[len("postgres://") :]
+
+        app.config.update(
+            SECRET_KEY=session_secret,
+            SQLALCHEMY_DATABASE_URI=database_url,
+            SQLALCHEMY_ENGINE_OPTIONS={"poolclass": NullPool},
+        )
+    else:
+        app.config.update(test_config)
+        if not app.config.get("SQLALCHEMY_DATABASE_URI"):
+            raise RuntimeError(
+                "test_config deve informar SQLALCHEMY_DATABASE_URI, por exemplo sqlite:///:memory:."
+            )
+        if not app.config.get("SECRET_KEY"):
+            raise RuntimeError(
+                "test_config deve informar SECRET_KEY para os testes."
+            )
+
     db.init_app(app)
     login_manager.init_app(app)
 
-    with app.app_context():
-        db.create_all()
-        seed_users()
+    if app.config.get("TESTING"):
+        with app.app_context():
+            db.create_all()
+            seed_users()
 
     register_routes(app)
     register_error_handlers(app)
@@ -240,9 +268,6 @@ def register_error_handlers(app: Flask) -> None:
         return render_template("404.html"), 404
 
 
-app = create_app()
-
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "5000"))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    create_app().run(host="0.0.0.0", port=port, debug=True)
