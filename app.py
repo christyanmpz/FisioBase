@@ -32,10 +32,10 @@ def create_app(test_config: dict | None = None) -> Flask:
     )
 
     if test_config is None:
-        database_url = os.getenv("DATABASE_URL")
+        database_url = os.getenv("SUPABASE_DB_URL")
         if not database_url:
             raise RuntimeError(
-                "DATABASE_URL não está configurada; a aplicação não iniciará sem um banco PostgreSQL."
+                "SUPABASE_DB_URL não está configurada; a aplicação não iniciará sem um banco PostgreSQL."
             )
 
         session_secret = os.getenv("SESSION_SECRET")
