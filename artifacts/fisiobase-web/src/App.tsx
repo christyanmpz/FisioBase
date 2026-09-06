@@ -7,13 +7,14 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Link, Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 
-type UserRole = 'admin' | 'fisioterapeuta';
+type UserProfile = 'ADMIN' | 'FISIOTERAPEUTA';
 
 type User = {
   id: number;
   nome: string;
   email: string;
-  tipo_usuario: UserRole;
+  perfil: UserProfile;
+  ativo: boolean;
 };
 
 type DemoCredentials = {
@@ -80,8 +81,16 @@ function firstName(nome: string) {
   return nome.split(' ')[0];
 }
 
-function dashboardPath(tipo: UserRole) {
-  return tipo === 'admin' ? '/dashboard/admin' : '/dashboard/fisioterapeuta';
+function dashboardPath(perfil: UserProfile) {
+  return perfil === 'ADMIN' ? '/dashboard/admin' : '/dashboard/fisioterapeuta';
+}
+
+function profileLabel(perfil: UserProfile) {
+  return perfil === 'ADMIN' ? 'Administrador' : 'Fisioterapeuta';
+}
+
+function profileClass(perfil: UserProfile) {
+  return perfil === 'ADMIN' ? 'admin' : 'fisioterapeuta';
 }
 
 function Brand({ small = false }: { small?: boolean }) {
@@ -115,7 +124,7 @@ function LoginPage({ onLogin, connectionError = '' }: { onLogin: (user: User) =>
         body: JSON.stringify({ email: email.trim(), senha }),
       });
       onLogin(result.user);
-      setLocation(result.redirect_path || dashboardPath(result.user.tipo_usuario));
+      setLocation(result.redirect_path || dashboardPath(result.user.perfil));
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -239,8 +248,8 @@ function LoginPage({ onLogin, connectionError = '' }: { onLogin: (user: User) =>
 
 function Sidebar({ user, onLogout }: { user: User; onLogout: () => Promise<void> }) {
   const [, setLocation] = useLocation();
-  const isAdmin = user.tipo_usuario === 'admin';
-  const home = dashboardPath(user.tipo_usuario);
+  const isAdmin = user.perfil === 'ADMIN';
+  const home = dashboardPath(user.perfil);
   const logout = async () => {
     await onLogout();
     setLocation('/');
@@ -413,10 +422,10 @@ function AdminDashboard({ user, onLogout }: { user: User; onLogout: () => Promis
                 )}
                 {!isLoadingOverview && !overviewError && users.map((systemUser) => (
                   <tr key={systemUser.id} data-testid={`row-user-${systemUser.id}`}>
-                    <td><div className="table-person"><span className={`fb-avatar avatar-table ${systemUser.tipo_usuario === 'admin' ? 'fb-avatar--admin' : ''}`} aria-hidden="true">{initials(systemUser.nome)}</span><strong>{systemUser.nome}</strong></div></td>
+                    <td><div className="table-person"><span className={`fb-avatar avatar-table ${systemUser.perfil === 'ADMIN' ? 'fb-avatar--admin' : ''}`} aria-hidden="true">{initials(systemUser.nome)}</span><strong>{systemUser.nome}</strong></div></td>
                     <td className="muted-cell">{systemUser.email}</td>
-                    <td><span className={`role-badge role-badge--${systemUser.tipo_usuario}`}>{systemUser.tipo_usuario === 'admin' ? 'Administrador' : 'Fisioterapeuta'}</span></td>
-                    <td><span className="status-badge"><span className="status-dot" aria-hidden="true" />Ativo</span></td>
+                    <td><span className={`role-badge role-badge--${profileClass(systemUser.perfil)}`}>{profileLabel(systemUser.perfil)}</span></td>
+                    <td><span className="status-badge"><span className="status-dot" aria-hidden="true" />{systemUser.ativo ? 'Ativo' : 'Inativo'}</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -466,7 +475,7 @@ function PhysiotherapistDashboard({ user, onLogout }: { user: User; onLogout: ()
 
 function ForbiddenPage({ user, target }: { user: User | null; target?: string }) {
   const [, setLocation] = useLocation();
-  const destination = user ? dashboardPath(user.tipo_usuario) : '/';
+  const destination = user ? dashboardPath(user.perfil) : '/';
   return (
     <main className="forbidden-page fb-noise">
       <section className="forbidden-card fb-reveal" aria-labelledby="forbidden-title">
@@ -521,7 +530,7 @@ function Router() {
 
   useEffect(() => {
     if (!isSessionLoading && user && (location === '/' || location === '/login')) {
-      setLocation(dashboardPath(user.tipo_usuario));
+      setLocation(dashboardPath(user.perfil));
     }
   }, [isSessionLoading, location, setLocation, user]);
 
@@ -542,8 +551,8 @@ function Router() {
       <Switch>
         <Route path="/" component={() => isSessionLoading ? <PageLoading /> : user ? <PageLoading /> : <LoginPage onLogin={login} connectionError={sessionError} />} />
         <Route path="/login" component={() => isSessionLoading ? <PageLoading /> : <LoginPage onLogin={login} connectionError={sessionError} />} />
-        <Route path="/dashboard/admin" component={() => user ? (user.tipo_usuario === 'admin' ? <AdminDashboard user={user} onLogout={logout} /> : <ForbiddenPage user={user} target="o painel administrativo" />) : <ForbiddenPage user={null} target="o painel administrativo" />} />
-        <Route path="/dashboard/fisioterapeuta" component={() => user ? (user.tipo_usuario === 'fisioterapeuta' ? <PhysiotherapistDashboard user={user} onLogout={logout} /> : <ForbiddenPage user={user} target="a área do fisioterapeuta" />) : <ForbiddenPage user={null} target="a área do fisioterapeuta" />} />
+        <Route path="/dashboard/admin" component={() => user ? (user.perfil === 'ADMIN' ? <AdminDashboard user={user} onLogout={logout} /> : <ForbiddenPage user={user} target="o painel administrativo" />) : <ForbiddenPage user={null} target="o painel administrativo" />} />
+        <Route path="/dashboard/fisioterapeuta" component={() => user ? (user.perfil === 'FISIOTERAPEUTA' ? <PhysiotherapistDashboard user={user} onLogout={logout} /> : <ForbiddenPage user={user} target="a área do fisioterapeuta" />) : <ForbiddenPage user={null} target="a área do fisioterapeuta" />} />
         <Route path="/forbidden" component={() => <ForbiddenPage user={user} />} />
         <Route component={NotFound} />
       </Switch>

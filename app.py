@@ -13,7 +13,7 @@ from flask_login import (
 )
 from sqlalchemy.pool import NullPool
 
-from models import User, db
+from models import ADMIN_PROFILE, PHYSIOTHERAPIST_PROFILE, User, db
 
 
 login_manager = LoginManager()
@@ -66,11 +66,6 @@ def create_app(test_config: dict | None = None) -> Flask:
     db.init_app(app)
     login_manager.init_app(app)
 
-    if app.config.get("TESTING"):
-        with app.app_context():
-            db.create_all()
-            seed_users()
-
     register_routes(app)
     register_error_handlers(app)
     return app
@@ -89,14 +84,18 @@ def seed_users() -> None:
     admin = User(
         nome="Marina Almeida",
         email="admin@fisio.com",
-        tipo_usuario="admin",
+        perfil=ADMIN_PROFILE,
+        ativo=True,
+        falhas_login=0,
     )
     admin.set_password("Admin@123")
 
     fisioterapeuta = User(
         nome="Rafael Santos",
         email="fisio@fisio.com",
-        tipo_usuario="fisioterapeuta",
+        perfil=PHYSIOTHERAPIST_PROFILE,
+        ativo=True,
+        falhas_login=0,
     )
     fisioterapeuta.set_password("Fisio@123")
 
@@ -111,7 +110,7 @@ def role_required(role: str):
         @wraps(view_function)
         @login_required
         def wrapped_view(*args, **kwargs):
-            if current_user.tipo_usuario != role:
+            if current_user.perfil != role:
                 abort(403)
             return view_function(*args, **kwargs)
 
@@ -120,13 +119,14 @@ def role_required(role: str):
     return decorator
 
 
-def user_payload(user: User) -> dict[str, str | int]:
+def user_payload(user: User) -> dict[str, str | int | bool | None]:
     """Representa um usuário sem expor o hash de senha ao cliente."""
     return {
         "id": user.id,
         "nome": user.nome,
         "email": user.email,
-        "tipo_usuario": user.tipo_usuario,
+        "perfil": user.perfil,
+        "ativo": user.ativo,
     }
 
 
@@ -185,7 +185,7 @@ def register_routes(app: Flask) -> None:
         return jsonify({"authenticated": False})
 
     @app.get("/api/admin/users")
-    @role_required("admin")
+    @role_required(ADMIN_PROFILE)
     def api_admin_users():
         """Fornece ao dashboard administrativo os usuários persistidos."""
         profissionais = User.query.order_by(User.nome).all()
@@ -195,11 +195,11 @@ def register_routes(app: Flask) -> None:
                 "totals": {
                     "users": len(profissionais),
                     "admins": sum(
-                        profissional.tipo_usuario == "admin"
+                        profissional.perfil == ADMIN_PROFILE
                         for profissional in profissionais
                     ),
                     "fisioterapeutas": sum(
-                        profissional.tipo_usuario == "fisioterapeuta"
+                        profissional.perfil == PHYSIOTHERAPIST_PROFILE
                         for profissional in profissionais
                     ),
                 },
@@ -240,11 +240,13 @@ def register_routes(app: Flask) -> None:
         return redirect(url_for("login"))
 
     @app.get("/dashboard/admin")
-    @role_required("admin")
+    @role_required(ADMIN_PROFILE)
     def admin_dashboard():
         profissionais = User.query.order_by(User.nome).all()
-        total_admins = User.query.filter_by(tipo_usuario="admin").count()
-        total_fisioterapeutas = User.query.filter_by(tipo_usuario="fisioterapeuta").count()
+        total_admins = User.query.filter_by(perfil=ADMIN_PROFILE).count()
+        total_fisioterapeutas = User.query.filter_by(
+            perfil=PHYSIOTHERAPIST_PROFILE
+        ).count()
         return render_template(
             "dashboard_admin.html",
             profissionais=profissionais,
@@ -253,7 +255,7 @@ def register_routes(app: Flask) -> None:
         )
 
     @app.get("/dashboard/fisioterapeuta")
-    @role_required("fisioterapeuta")
+    @role_required(PHYSIOTHERAPIST_PROFILE)
     def physiotherapist_dashboard():
         return render_template("dashboard_fisioterapeuta.html")
 
