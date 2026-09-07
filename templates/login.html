@@ -1,9 +1,5 @@
-{% extends "base.html" %}
-
-{% block title %}Entrar · FisioBase{% endblock %}
-{% block body_class %}login-page{% endblock %}
-
-{% block body %}
+{% extends "base.html" %} {% block title %}Entrar · FisioBase{% endblock %} {%
+block body_class %}login-page{% endblock %} {% block body %}
 <main class="login-shell" id="conteudo">
   <section class="login-intro" aria-labelledby="brand-title">
     <div class="brand-mark" aria-hidden="true">
@@ -30,20 +26,22 @@
         <p>Entre com suas credenciais para acessar o FisioBase.</p>
       </div>
 
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          <div class="flash-stack" aria-live="polite" aria-atomic="true">
-            {% for category, message in messages %}
-              <div class="flash flash--{{ category }}" role="alert">
-                <span aria-hidden="true">{% if category == "error" %}!{% else %}✓{% endif %}</span>
-                <span>{{ message }}</span>
-              </div>
-            {% endfor %}
-          </div>
-        {% endif %}
-      {% endwith %}
+      {% with messages = get_flashed_messages(with_categories=true) %} {% if
+      messages %}
+      <div class="flash-stack" aria-live="polite" aria-atomic="true">
+        {% for category, message in messages %}
+        <div class="flash flash--{{ category }}" role="alert">
+          <span aria-hidden="true"
+            >{% if category == "error" %}!{% else %}✓{% endif %}</span
+          >
+          <span>{{ message }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %} {% endwith %}
 
       <form method="post" class="login-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <div class="field">
           <label for="email">E-mail</label>
           <input
@@ -102,9 +100,7 @@
         </div>
       </div>
 
-      <p class="login-footer">
-        Ambiente acadêmico · Projeto Integrador
-      </p>
+      <p class="login-footer">Ambiente acadêmico · Projeto Integrador</p>
     </div>
   </section>
 </main>

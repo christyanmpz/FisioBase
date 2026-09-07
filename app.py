@@ -3,7 +3,16 @@
 from functools import wraps
 import os
 
-from flask import Flask, abort, flash, jsonify, redirect, render_template, request, url_for
+from flask import (
+    Flask,
+    abort,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask_login import (
     LoginManager,
     current_user,
@@ -13,6 +22,8 @@ from flask_login import (
 )
 from sqlalchemy.pool import NullPool
 
+from flask_wtf.csrf import CSRFProtect
+
 from models import ADMIN_PROFILE, PHYSIOTHERAPIST_PROFILE, User, db
 
 
@@ -20,6 +31,9 @@ login_manager = LoginManager()
 login_manager.login_view = "login"
 login_manager.login_message = "Entre para acessar esta área."
 login_manager.login_message_category = "info"
+
+
+csrf = CSRFProtect()
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -59,14 +73,14 @@ def create_app(test_config: dict | None = None) -> Flask:
                 "test_config deve informar SQLALCHEMY_DATABASE_URI, por exemplo sqlite:///:memory:."
             )
         if not app.config.get("SECRET_KEY"):
-            raise RuntimeError(
-                "test_config deve informar SECRET_KEY para os testes."
-            )
+            raise RuntimeError("test_config deve informar SECRET_KEY para os testes.")
 
     db.init_app(app)
     login_manager.init_app(app)
-
+    csrf.init_app(app)
     register_routes(app)
+    csrf.exempt(app.view_functions["api_login"])
+    csrf.exempt(app.view_functions["api_logout"])
     register_error_handlers(app)
     return app
 
@@ -149,7 +163,7 @@ def register_routes(app: Flask) -> None:
         password = str(data.get("senha", ""))
         user = db.session.scalar(db.select(User).where(User.email == email))
 
-        if user is None or not user.check_password(password):
+        if user is None or not user.check_password(password) or not user.ativo:
             return (
                 jsonify(
                     {
@@ -222,8 +236,11 @@ def register_routes(app: Flask) -> None:
             password = request.form.get("senha", "")
             user = db.session.scalar(db.select(User).where(User.email == email))
 
-            if user is None or not user.check_password(password):
-                flash("E-mail ou senha incorretos. Confira os dados e tente novamente.", "error")
+            if user is None or not user.check_password(password) or not user.ativo:
+                flash(
+                    "E-mail ou senha incorretos. Confira os dados e tente novamente.",
+                    "error",
+                )
                 return render_template("login.html", email=email), 401
 
             login_user(user)
