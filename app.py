@@ -2,6 +2,8 @@
 
 from functools import wraps
 import os
+from datetime import date
+from dotenv import load_dotenv
 
 from flask import (
     Flask,
@@ -24,8 +26,9 @@ from sqlalchemy.pool import NullPool
 
 from flask_wtf.csrf import CSRFProtect
 
-from models import ADMIN_PROFILE, PHYSIOTHERAPIST_PROFILE, User, db
+from models import ADMIN_PROFILE, PHYSIOTHERAPIST_PROFILE, Patient, User, db
 
+load_dotenv()
 
 login_manager = LoginManager()
 login_manager.login_view = "login"
@@ -276,6 +279,52 @@ def register_routes(app: Flask) -> None:
     def physiotherapist_dashboard():
         return render_template("dashboard_fisioterapeuta.html")
 
+    @app.get("/pacientes")
+    @login_required
+    def listar_pacientes():
+        consulta = Patient.query
+        if current_user.perfil != ADMIN_PROFILE:
+            consulta = consulta.filter_by(fisioterapeuta_id=current_user.id)
+        pacientes = consulta.order_by(Patient.nome).all()
+        return render_template("pacientes_lista.html", pacientes=pacientes)
+
+    @app.route("/pacientes/novo", methods=["GET", "POST"])
+    @login_required
+    def novo_paciente():
+        if request.method == "POST":
+            nome = request.form.get("nome", "").strip()
+            if not nome:
+                flash("O nome do paciente é obrigatório.", "error")
+                return render_template("paciente_form.html", paciente=None), 400
+
+            paciente = Patient(
+                nome=nome,
+                cpf=request.form.get("cpf", "").strip() or None,
+                telefone=request.form.get("telefone", "").strip() or None,
+                email=request.form.get("email", "").strip() or None,
+                endereco=request.form.get("endereco", "").strip() or None,
+                cid=request.form.get("cid", "").strip() or None,
+                diagnostico=request.form.get("diagnostico", "").strip() or None,
+                observacoes=request.form.get("observacoes", "").strip() or None,
+                ativo=True,
+                fisioterapeuta_id=current_user.id,
+            )
+
+            data_nascimento = request.form.get("data_nascimento", "").strip()
+            if data_nascimento:
+                try:
+                    paciente.data_nascimento = date.fromisoformat(data_nascimento)
+                except ValueError:
+                    flash("Data de nascimento inválida.", "error")
+                    return render_template("paciente_form.html", paciente=None), 400
+
+            db.session.add(paciente)
+            db.session.commit()
+            flash(f"Paciente {paciente.nome} cadastrado.", "success")
+            return redirect(url_for("listar_pacientes"))
+
+        return render_template("paciente_form.html", paciente=None) 
+    
 
 def register_error_handlers(app: Flask) -> None:
     @app.errorhandler(403)

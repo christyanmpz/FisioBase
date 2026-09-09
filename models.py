@@ -37,3 +37,28 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password: str) -> bool:
         return check_password_hash(self.senha_hash, password)
+
+class Patient(db.Model):
+    __tablename__ = "pacientes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(150), nullable=False)
+    cpf = db.Column(db.String(14), unique=True, nullable=True)
+    data_nascimento = db.Column(db.Date, nullable=True)
+    telefone = db.Column(db.String(30), nullable=True)
+    email = db.Column(db.String(150), nullable=True)
+    endereco = db.Column(db.String(255), nullable=True)
+    cid = db.Column(db.String(30), nullable=True)
+    diagnostico = db.Column(db.Text, nullable=True)
+    observacoes = db.Column(db.Text, nullable=True)
+    ativo = db.Column(db.Boolean, nullable=False, default=True)
+    fisioterapeuta_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
+    criado_em = db.Column(db.DateTime(timezone=True), nullable=False, server_default=db.func.now())
+
+    fisioterapeuta = db.relationship("User", backref="pacientes")
+
+    def acessivel_por(self, usuario) -> bool:
+        """Um ADMIN vê qualquer paciente; um fisioterapeuta, só os seus."""
+        if usuario.perfil == ADMIN_PROFILE:
+            return True
+        return self.fisioterapeuta_id == usuario.id

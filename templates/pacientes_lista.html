@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Pacientes · FisioBase{% endblock %}
+
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+
+<div class="app-shell" id="conteudo">
+  <main class="content">
+    <header class="panel-heading">
+      <div>
+        <p class="eyebrow">Gestão</p>
+        <h1>Pacientes</h1>
+      </div>
+      <a class="button" href="{{ url_for('novo_paciente') }}">Novo paciente</a>
+
+    {% if pacientes %}
+    <table class="data-table">
+      <caption class="sr-only">Lista de pacientes cadastrados</caption>
+      <thead>
+        <tr>
+          <th scope="col">Nome</th>
+          <th scope="col">CPF</th>
+          <th scope="col">Telefone</th>
+          <th scope="col">Situação</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for paciente in pacientes %}
+        <tr>
+          <td>{{ paciente.nome }}</td>
+          <td>{{ paciente.cpf or "—" }}</td>
+          <td>{{ paciente.telefone or "—" }}</td>
+          <td>{{ "Ativo" if paciente.ativo else "Inativo" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <h2>Nenhum paciente cadastrado</h2>
+      <p>Comece cadastrando o primeiro paciente do consultório.</p>
+    </div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

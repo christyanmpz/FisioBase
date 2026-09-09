@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Novo paciente · FisioBase{% endblock %}
+
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+<div class="app-shell" id="conteudo">
+  <main class="content">
+    <h1>Novo paciente</h1>
+
+    {% with mensagens = get_flashed_messages(with_categories=true) %}
+      {% if mensagens %}
+        <div aria-live="polite">
+          {% for categoria, mensagem in mensagens %}
+            <p class="flash flash--{{ categoria }}">{{ mensagem }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <form method="post" class="form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="field">
+        <label for="nome">Nome completo</label>
+        <input id="nome" name="nome" type="text" required autofocus>
+      </div>
+
+      <div class="field">
+        <label for="cpf">CPF</label>
+        <input id="cpf" name="cpf" type="text" inputmode="numeric">
+      </div>
+
+      <div class="field">
+        <label for="data_nascimento">Data de nascimento</label>
+        <input id="data_nascimento" name="data_nascimento" type="date">
+      </div>
+
+      <div class="field">
+        <label for="telefone">Telefone</label>
+        <input id="telefone" name="telefone" type="tel">
+      </div>
+
+      <div class="field">
+        <label for="email">E-mail</label>
+        <input id="email" name="email" type="email">
+      </div>
+
+      <div class="field">
+        <label for="endereco">Endereço</label>
+        <input id="endereco" name="endereco" type="text">
+      </div>
+
+      <div class="field">
+        <label for="cid">CID</label>
+        <input id="cid" name="cid" type="text">
+      </div>
+
+      <div class="field">
+        <label for="diagnostico">Diagnóstico</label>
+        <textarea id="diagnostico" name="diagnostico" rows="3"></textarea>
+      </div>
+
+      <div class="field">
+        <label for="observacoes">Observações</label>
+        <textarea id="observacoes" name="observacoes" rows="3"></textarea>
+      </div>
+
+      <button type="submit">Cadastrar paciente</button>
+      <a href="{{ url_for('listar_pacientes') }}">Cancelar</a>
+    </form>
+  </main>
+</div>
+{% endblock %}
