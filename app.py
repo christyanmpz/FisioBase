@@ -4,7 +4,13 @@ from functools import wraps
 import os
 from datetime import date
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    pass
+
 from flask import (
     Flask,
     abort,
@@ -26,8 +32,6 @@ from flask_wtf.csrf import CSRFProtect
 from sqlalchemy.pool import NullPool
 
 from models import ADMIN_PROFILE, PHYSIOTHERAPIST_PROFILE, Patient, User, db
-
-load_dotenv()
 
 login_manager = LoginManager()
 login_manager.login_view = "login"
