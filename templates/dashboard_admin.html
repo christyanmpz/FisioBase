@@ -52,6 +52,7 @@
         <span>Sistema operacional</span>
       </div>
       <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="nav-item nav-item--logout" type="submit">
           <span class="nav-icon" aria-hidden="true">↪</span>
           Sair da conta
@@ -135,17 +136,17 @@
               <tr>
                 <td>
                   <div class="table-person">
-                    <span class="avatar avatar--table {% if profissional.tipo_usuario == 'fisioterapeuta' %}avatar--green{% endif %}" aria-hidden="true">{{ profissional.nome[0] }}</span>
+                    <span class="avatar avatar--table {% if profissional.perfil == 'FISIOTERAPEUTA' %}avatar--green{% endif %}" aria-hidden="true">{{ profissional.nome[0] }}</span>
                     <strong>{{ profissional.nome }}</strong>
                   </div>
                 </td>
                 <td class="muted-cell">{{ profissional.email }}</td>
                 <td>
-                  <span class="role-badge role-badge--{{ profissional.tipo_usuario }}">
-                    {{ "Administrador" if profissional.tipo_usuario == "admin" else "Fisioterapeuta" }}
+                  <span class="role-badge role-badge--{{ profissional.perfil|lower }}">
+                    {{ "Administrador" if profissional.perfil == "ADMIN" else "Fisioterapeuta" }}
                   </span>
                 </td>
-                <td><span class="status-badge"><span class="status-dot" aria-hidden="true"></span>Ativo</span></td>
+                <td><span class="status-badge"><span class="status-dot" aria-hidden="true"></span>{{"Ativo" if profissional.ativo else "Inativo"}}</span></td>
               </tr>
               {% endfor %}
             </tbody>

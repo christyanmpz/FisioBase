@@ -47,6 +47,7 @@
         <span>Sistema operacional</span>
       </div>
       <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="nav-item nav-item--logout" type="submit">
           <span class="nav-icon" aria-hidden="true">↪</span>
           Sair da conta
