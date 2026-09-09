@@ -87,3 +87,65 @@ def test_data_de_nascimento_invalida_nao_derruba_a_pagina(client):
         data={"nome": "Joao Teste", "data_nascimento": "31/02/2020"},
     )
     assert resposta.status_code == 400
+
+
+def test_fisioterapeuta_nao_edita_paciente_de_outro(client, app):
+    id_fisio = id_do_usuario(app, "fisio@teste.com")
+    id_admin = id_do_usuario(app, "admin@teste.com")
+
+    id_alheio = criar_paciente(app, "Paciente Do Admin", id_admin)
+    id_proprio = criar_paciente(app, "Paciente Proprio", id_fisio)
+
+    fazer_login(client, "fisio@teste.com", SENHA_FISIO)
+
+    assert client.get(f"/pacientes/{id_alheio}/editar").status_code == 403
+    assert client.get(f"/pacientes/{id_proprio}/editar").status_code == 200
+
+
+def test_fisioterapeuta_nao_desativa_paciente_de_outro(client, app):
+    id_admin = id_do_usuario(app, "admin@teste.com")
+    id_alheio = criar_paciente(app, "Paciente Do Admin", id_admin)
+
+    fazer_login(client, "fisio@teste.com", SENHA_FISIO)
+    resposta = client.post(f"/pacientes/{id_alheio}/desativar")
+
+    assert resposta.status_code == 403
+
+    with app.app_context():
+        paciente = db.session.get(Patient, id_alheio)
+        assert paciente.ativo is True
+
+
+def test_admin_edita_qualquer_paciente(client, app):
+    id_fisio = id_do_usuario(app, "fisio@teste.com")
+    id_paciente = criar_paciente(app, "Paciente Do Fisio", id_fisio)
+
+    fazer_login(client, "admin@teste.com", SENHA_ADMIN)
+    client.post(
+        f"/pacientes/{id_paciente}/editar",
+        data={"nome": "Nome Corrigido", "telefone": "11999998888"},
+        follow_redirects=True,
+    )
+
+    with app.app_context():
+        paciente = db.session.get(Patient, id_paciente)
+        assert paciente.nome == "Nome Corrigido"
+        assert paciente.telefone == "11999998888"
+
+
+def test_desativar_marca_inativo_sem_apagar(client, app):
+    id_fisio = id_do_usuario(app, "fisio@teste.com")
+    id_paciente = criar_paciente(app, "Paciente Saindo", id_fisio)
+
+    fazer_login(client, "fisio@teste.com", SENHA_FISIO)
+    client.post(f"/pacientes/{id_paciente}/desativar", follow_redirects=True)
+
+    with app.app_context():
+        paciente = db.session.get(Patient, id_paciente)
+        assert paciente is not None
+        assert paciente.ativo is False
+
+
+def test_paciente_inexistente_devolve_404(client):
+    fazer_login(client, "admin@teste.com", SENHA_ADMIN)
+    assert client.get("/pacientes/9999/editar").status_code == 404

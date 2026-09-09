@@ -64,6 +64,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         app.config.update(
             SECRET_KEY=session_secret,
+            SESSION_COOKIE_SECURE=os.getenv("VERCEL") is not None,
             SQLALCHEMY_DATABASE_URI=database_url,
             SQLALCHEMY_ENGINE_OPTIONS={"poolclass": NullPool},
         )
@@ -89,33 +90,6 @@ def create_app(test_config: dict | None = None) -> Flask:
 @login_manager.user_loader
 def load_user(user_id: str) -> User | None:
     return db.session.get(User, int(user_id))
-
-
-def seed_users() -> None:
-    """Cria usuários de demonstração somente quando o banco está vazio."""
-    if User.query.first() is not None:
-        return
-
-    admin = User(
-        nome="Marina Almeida",
-        email="admin@fisio.com",
-        perfil=ADMIN_PROFILE,
-        ativo=True,
-        falhas_login=0,
-    )
-    admin.set_password("Admin@123")
-
-    fisioterapeuta = User(
-        nome="Rafael Santos",
-        email="fisio@fisio.com",
-        perfil=PHYSIOTHERAPIST_PROFILE,
-        ativo=True,
-        falhas_login=0,
-    )
-    fisioterapeuta.set_password("Fisio@123")
-
-    db.session.add_all([admin, fisioterapeuta])
-    db.session.commit()
 
 
 def role_required(role: str):
