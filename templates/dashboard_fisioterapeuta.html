@@ -4,59 +4,6 @@
 {% block body_class %}app-page{% endblock %}
 
 {% block body %}
-<div class="app-shell" id="conteudo">
-  <aside class="sidebar">
-    <a class="sidebar-brand" href="{{ url_for('physiotherapist_dashboard') }}" aria-label="FisioBase, início">
-      <span class="brand-mark brand-mark--small" aria-hidden="true">
-        <span class="brand-mark__dot"></span>
-        <span class="brand-mark__line"></span>
-      </span>
-      <span>Fisio<span>Base</span></span>
-    </a>
-
-    <div class="sidebar-user">
-      <span class="avatar avatar--green" aria-hidden="true">{{ current_user.nome[0] }}</span>
-      <div>
-        <strong>{{ current_user.nome }}</strong>
-        <span>Fisioterapeuta</span>
-      </div>
-    </div>
-
-    <nav class="main-nav" aria-label="Navegação principal">
-      <p class="nav-label">Minha rotina</p>
-      <a class="nav-item nav-item--active" href="{{ url_for('physiotherapist_dashboard') }}">
-        <span class="nav-icon" aria-hidden="true">⌂</span>
-        Minha área
-      </a>
-      <p class="nav-label">Atendimento</p>
-      <a class="nav-item nav-item--disabled" href="#" aria-disabled="true">
-        <span class="nav-icon" aria-hidden="true">◷</span>
-        Minha agenda
-        <span class="nav-soon">Em breve</span>
-      </a>
-      <a class="nav-item nav-item--disabled" href="#" aria-disabled="true">
-        <span class="nav-icon" aria-hidden="true">□</span>
-        Meus pacientes
-        <span class="nav-soon">Em breve</span>
-      </a>
-    </nav>
-
-    <div class="sidebar-bottom">
-      <div class="sidebar-status">
-        <span class="status-dot" aria-hidden="true"></span>
-        <span>Sistema operacional</span>
-      </div>
-      <form method="post" action="{{ url_for('logout') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="nav-item nav-item--logout" type="submit">
-          <span class="nav-icon" aria-hidden="true">↪</span>
-          Sair da conta
-        </button>
-      </form>
-    </div>
-  </aside>
-
-  <main class="main-content">
     <header class="topbar">
       <div>
         <p class="breadcrumb">Minha rotina <span>/</span> Minha área</p>
@@ -125,6 +72,4 @@
         </div>
       </article>
     </section>
-  </main>
-</div>
 {% endblock %}

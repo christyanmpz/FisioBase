@@ -341,6 +341,69 @@ def register_routes(app: Flask) -> None:
         flash(f"{paciente.nome} foi desativado.", "success")
         return redirect(url_for("listar_pacientes"))
 
+    @app.get("/usuarios")
+    @role_required(ADMIN_PROFILE)
+    def listar_usuarios():
+        usuarios = User.query.order_by(User.nome).all()
+        return render_template("usuarios_lista.html", usuarios=usuarios)
+
+    @app.route("/usuarios/novo", methods=["GET", "POST"])
+    @role_required(ADMIN_PROFILE)
+    def novo_usuario():
+        if request.method == "POST":
+            nome = request.form.get("nome", "").strip()
+            email = request.form.get("email", "").strip().lower()
+            senha = request.form.get("senha", "")
+            perfil = request.form.get("perfil", "").strip().upper()
+
+            if not nome or not email or not senha:
+                flash("Nome, e-mail e senha são obrigatórios.", "error")
+                return render_template("usuario_form.html"), 400
+
+            if perfil not in (ADMIN_PROFILE, PHYSIOTHERAPIST_PROFILE):
+                flash("Perfil inválido.", "error")
+                return render_template("usuario_form.html"), 400
+
+            if len(senha) < 8:
+                flash("A senha deve ter ao menos 8 caracteres.", "error")
+                return render_template("usuario_form.html"), 400
+
+            if db.session.scalar(db.select(User).where(User.email == email)):
+                flash("Já existe um usuário com esse e-mail.", "error")
+                return render_template("usuario_form.html"), 400
+
+            usuario = User(
+                nome=nome, email=email, perfil=perfil, ativo=True, falhas_login=0
+            )
+            usuario.set_password(senha)
+            db.session.add(usuario)
+            db.session.commit()
+            flash(f"Usuário {usuario.nome} criado.", "success")
+            return redirect(url_for("listar_usuarios"))
+
+        return render_template("usuario_form.html")
+
+    @app.post("/usuarios/<int:usuario_id>/desativar")
+    @role_required(ADMIN_PROFILE)
+    def desativar_usuario(usuario_id: int):
+        usuario = db.session.get(User, usuario_id)
+        if usuario is None:
+            abort(404)
+
+        if usuario.id == current_user.id:
+            flash("Você não pode desativar a própria conta.", "error")
+            return redirect(url_for("listar_usuarios"))
+
+        usuario.ativo = False
+        db.session.commit()
+        flash(f"{usuario.nome} foi desativado.", "success")
+        return redirect(url_for("listar_usuarios"))
+
+        paciente.ativo = False
+        db.session.commit()
+        flash(f"{paciente.nome} foi desativado.", "success")
+        return redirect(url_for("listar_pacientes"))
+
 
 def register_error_handlers(app: Flask) -> None:
     @app.errorhandler(403)

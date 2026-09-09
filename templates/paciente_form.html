@@ -5,20 +5,7 @@
 {% block body_class %}app-page{% endblock %}
 
 {% block body %}
-<div class="app-shell" id="conteudo">
-  <main class="content">
     <h1>Novo paciente</h1>
-
-    {% with mensagens = get_flashed_messages(with_categories=true) %}
-      {% if mensagens %}
-        <div aria-live="polite">
-          {% for categoria, mensagem in mensagens %}
-            <p class="flash flash--{{ categoria }}">{{ mensagem }}</p>
-          {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
-
     <form method="post" class="form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -70,6 +57,4 @@
       <button type="submit">Cadastrar paciente</button>
       <a href="{{ url_for('listar_pacientes') }}">Cancelar</a>
     </form>
-  </main>
-</div>
 {% endblock %}

@@ -5,17 +5,14 @@
 {% block body_class %}app-page{% endblock %}
 
 {% block body %}
-
-<div class="app-shell" id="conteudo">
-  <main class="content">
     <header class="panel-heading">
       <div>
         <p class="eyebrow">Gestão</p>
         <h1>Pacientes</h1>
       </div>
       <a class="button" href="{{ url_for('novo_paciente') }}">Novo paciente</a>
-
-    {% if pacientes %}
+          </header>
+      {% if pacientes %}
     <table class="data-table">
       <caption class="sr-only">Lista de pacientes cadastrados</caption>
       <thead>
@@ -43,6 +40,4 @@
       <p>Comece cadastrando o primeiro paciente do consultório.</p>
     </div>
     {% endif %}
-  </main>
-</div>
 {% endblock %}

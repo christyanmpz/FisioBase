@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Usuários · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar">
+      <div>
+        <p class="breadcrumb">Gestão <span>/</span> Usuários</p>
+        <h1>Usuários do sistema</h1>
+      </div>
+      <a class="nav-item" href="{{ url_for('novo_usuario') }}">Novo usuário</a>
+    </header>
+
+    <section class="panel">
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Lista de usuários do sistema</caption>
+          <thead>
+            <tr>
+              <th scope="col">Nome</th>
+              <th scope="col">E-mail</th>
+              <th scope="col">Perfil</th>
+              <th scope="col">Status</th>
+              <th scope="col">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for usuario in usuarios %}
+            <tr>
+              <td><strong>{{ usuario.nome }}</strong></td>
+              <td class="muted-cell">{{ usuario.email }}</td>
+              <td>{{ "Administrador" if usuario.perfil == "ADMIN" else "Fisioterapeuta" }}</td>
+              <td>{{ "Ativo" if usuario.ativo else "Inativo" }}</td>
+              <td>
+                {% if usuario.ativo and usuario.id != current_user.id %}
+                <form method="post" action="{{ url_for('desativar_usuario', usuario_id=usuario.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit">Desativar</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+{% endblock %}
