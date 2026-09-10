@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Relatórios · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block body %}
+    <header class="topbar">
+      <div>
+        <p class="breadcrumb">Gestão <span>/</span> Relatórios</p>
+        <h1>Relatório mensal</h1>
+      </div>
+    </header>
+
+    <form method="get" class="day-nav">
+      <label class="sr-only" for="mes">Mês</label>
+      <select id="mes" name="mes"
+              style="padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--white);">
+        {% for numero, nome in [(1,"Janeiro"),(2,"Fevereiro"),(3,"Março"),(4,"Abril"),
+                                (5,"Maio"),(6,"Junho"),(7,"Julho"),(8,"Agosto"),
+                                (9,"Setembro"),(10,"Outubro"),(11,"Novembro"),(12,"Dezembro")] %}
+        <option value="{{ numero }}" {% if numero == mes %}selected{% endif %}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+
+      <label class="sr-only" for="ano">Ano</label>
+      <select id="ano" name="ano"
+              style="padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--white);">
+        {% for numero in anos %}
+        <option value="{{ numero }}" {% if numero == ano %}selected{% endif %}>{{ numero }}</option>
+        {% endfor %}
+      </select>
+
+      <button class="button button--ghost button--small" type="submit">Atualizar</button>
+    </form>
+
+    <section class="stats-grid" aria-label="Resumo do período">
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Atendimentos realizados</span>
+          <span class="stat-icon stat-icon--green" aria-hidden="true">✓</span>
+        </div>
+        <strong class="stat-value">{{ realizados }}</strong>
+        <span class="stat-caption">de {{ total }} agendados</span>
+      </article>
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Taxa de faltas</span>
+          <span class="stat-icon stat-icon--yellow" aria-hidden="true">!</span>
+        </div>
+        <strong class="stat-value">{{ taxa_falta }}%</strong>
+        <span class="stat-caption">{{ faltas }} faltas no período</span>
+      </article>
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Tratamentos iniciados</span>
+          <span class="stat-icon stat-icon--blue" aria-hidden="true">◎</span>
+        </div>
+        <strong class="stat-value">{{ ciclos_abertos }}</strong>
+        <span class="stat-caption">avaliações no mês</span>
+      </article>
+    </section>
+
+    <section class="content-grid">
+      <article class="panel panel--wide">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow eyebrow--muted">Ocupação</p>
+            <h2>Atendimentos por horário</h2>
+          </div>
+        </div>
+        {% if por_horario %}
+        <canvas id="grafico-horario" height="110"></canvas>
+        {% else %}
+        <p class="panel-note">Sem atendimentos registrados neste período.</p>
+        {% endif %}
+      </article>
+
+      <aside class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow eyebrow--muted">Perfil clínico</p>
+            <h2>Queixas por região</h2>
+          </div>
+        </div>
+        {% if por_regiao %}
+        <canvas id="grafico-regiao" height="200"></canvas>
+        {% else %}
+        <p class="panel-note">Nenhum tratamento iniciado neste período.</p>
+        {% endif %}
+      </aside>
+    </section>
+
+    <section class="content-grid" style="margin-top:17px;">
+      <article class="panel panel--wide">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow eyebrow--muted">Situação dos agendamentos</p>
+            <h2>Realizados, faltas e cancelamentos</h2>
+          </div>
+        </div>
+        <canvas id="grafico-status" height="110"></canvas>
+      </article>
+
+      {% if por_profissional %}
+      <aside class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow eyebrow--muted">Equipe</p>
+            <h2>Atendimentos por profissional</h2>
+          </div>
+        </div>
+        <canvas id="grafico-profissional" height="200"></canvas>
+      </aside>
+      {% endif %}
+    </section>
+
+    <script>
+      (function () {
+        const cores = {
+          aqua: "#81d8c9",
+          navy: "#173c4b",
+          verde: "#58b99d",
+          amarelo: "#f4d77b",
+          vermelho: "#c54949",
+          azul: "#3f858e",
+        };
+
+        Chart.defaults.font.family = "DM Sans, sans-serif";
+        Chart.defaults.color = "#799092";
+
+        function barras(id, rotulos, valores, cor, titulo) {
+          const alvo = document.getElementById(id);
+          if (!alvo) return;
+          new Chart(alvo, {
+            type: "bar",
+            data: {
+              labels: rotulos,
+              datasets: [{ label: titulo, data: valores, backgroundColor: cor, borderRadius: 6 }],
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { display: false } },
+              scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+            },
+          });
+        }
+
+        {% if por_horario %}
+        barras(
+          "grafico-horario",
+          {{ por_horario.keys()|list|tojson }},
+          {{ por_horario.values()|list|tojson }},
+          cores.aqua,
+          "Atendimentos"
+        );
+        {% endif %}
+
+        {% if por_regiao %}
+        const alvoRegiao = document.getElementById("grafico-regiao");
+        if (alvoRegiao) {
+          new Chart(alvoRegiao, {
+            type: "doughnut",
+            data: {
+              labels: {{ por_regiao.keys()|list|tojson }},
+              datasets: [{
+                data: {{ por_regiao.values()|list|tojson }},
+                backgroundColor: [cores.aqua, cores.amarelo, cores.azul, cores.verde],
+              }],
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { position: "bottom" } },
+            },
+          });
+        }
+        {% endif %}
+
+        const alvoStatus = document.getElementById("grafico-status");
+        if (alvoStatus) {
+          new Chart(alvoStatus, {
+            type: "bar",
+            data: {
+              labels: ["Realizados", "Faltas", "Cancelados"],
+              datasets: [{
+                data: [{{ realizados }}, {{ faltas }}, {{ cancelados }}],
+                backgroundColor: [cores.verde, cores.amarelo, cores.vermelho],
+                borderRadius: 6,
+              }],
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { display: false } },
+              scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+            },
+          });
+        }
+
+        {% if por_profissional %}
+        barras(
+          "grafico-profissional",
+          {{ por_profissional.keys()|list|tojson }},
+          {{ por_profissional.values()|list|tojson }},
+          cores.navy,
+          "Realizados"
+        );
+        {% endif %}
+      })();
+    </script>
+{% endblock %}

@@ -290,6 +290,14 @@ def register_routes(app: Flask) -> None:
     # Pacientes
     # ------------------------------------------------------------------
 
+    def _fisioterapeutas_ativos():
+        """Lista os fisioterapeutas ativos, para o admin escolher o responsável."""
+        return (
+            User.query.filter_by(perfil=PHYSIOTHERAPIST_PROFILE, ativo=True)
+            .order_by(User.nome)
+            .all()
+        )
+
     def _dados_do_formulario(paciente):
         """Preenche o paciente com o formulário. Devolve a mensagem de erro ou None."""
         nome = request.form.get("nome", "").strip()
@@ -322,43 +330,52 @@ def register_routes(app: Flask) -> None:
         paciente.cid = request.form.get("cid", "").strip() or None
         paciente.diagnostico = request.form.get("diagnostico", "").strip() or None
         paciente.observacoes = request.form.get("observacoes", "").strip() or None
+
+        if current_user.perfil == ADMIN_PROFILE:
+            responsavel_id = request.form.get("fisioterapeuta_id", "").strip()
+            if responsavel_id:
+                responsavel = db.session.get(User, int(responsavel_id))
+                if responsavel is None or not responsavel.ativo:
+                    return "Selecione um fisioterapeuta responsável válido."
+                paciente.fisioterapeuta_id = responsavel.id
+
         return None
 
     @app.get("/pacientes")
     @login_required
     def listar_pacientes():
-        busca = request.args.get("q", "").strip()
-
         consulta = Patient.query
         if current_user.perfil != ADMIN_PROFILE:
             consulta = consulta.filter_by(fisioterapeuta_id=current_user.id)
-
-        if busca:
-            somente_digitos = "".join(c for c in busca if c.isdigit())
-            filtros = [Patient.nome.ilike(f"%{busca}%")]
-            if somente_digitos:
-                filtros.append(Patient.cpf.ilike(f"%{somente_digitos}%"))
-            consulta = consulta.filter(db.or_(*filtros))
-
         pacientes = consulta.order_by(Patient.nome).all()
-        return render_template("pacientes_lista.html", pacientes=pacientes, busca=busca)
+        return render_template("pacientes_lista.html", pacientes=pacientes)
 
     @app.route("/pacientes/novo", methods=["GET", "POST"])
     @login_required
     def novo_paciente():
+        def form(codigo=200):
+            return (
+                render_template(
+                    "paciente_form.html",
+                    paciente=None,
+                    fisioterapeutas=_fisioterapeutas_ativos(),
+                ),
+                codigo,
+            )
+
         if request.method == "POST":
             paciente = Patient(ativo=True, fisioterapeuta_id=current_user.id)
             erro = _dados_do_formulario(paciente)
             if erro:
                 flash(erro, "error")
-                return render_template("paciente_form.html", paciente=None), 400
+                return form(400)
 
             db.session.add(paciente)
             db.session.commit()
             flash(f"Paciente {paciente.nome} cadastrado.", "success")
             return redirect(url_for("listar_pacientes"))
 
-        return render_template("paciente_form.html", paciente=None)
+        return form()
 
     @app.route("/pacientes/<int:paciente_id>/editar", methods=["GET", "POST"])
     @login_required
@@ -369,17 +386,27 @@ def register_routes(app: Flask) -> None:
         if not paciente.acessivel_por(current_user):
             abort(403)
 
+        def form(codigo=200):
+            return (
+                render_template(
+                    "paciente_form.html",
+                    paciente=paciente,
+                    fisioterapeutas=_fisioterapeutas_ativos(),
+                ),
+                codigo,
+            )
+
         if request.method == "POST":
             erro = _dados_do_formulario(paciente)
             if erro:
                 flash(erro, "error")
-                return render_template("paciente_form.html", paciente=paciente), 400
+                return form(400)
 
             db.session.commit()
             flash(f"Dados de {paciente.nome} atualizados.", "success")
             return redirect(url_for("listar_pacientes"))
 
-        return render_template("paciente_form.html", paciente=paciente)
+        return form()
 
     @app.post("/pacientes/<int:paciente_id>/desativar")
     @login_required
@@ -714,6 +741,86 @@ def register_routes(app: Flask) -> None:
         db.session.commit()
         flash("Status atualizado.", "success")
         return redirect(url_for("agenda", data=agendamento.data.isoformat()))
+
+    # ------------------------------------------------------------------
+    # Relatórios
+    # ------------------------------------------------------------------
+
+    @app.get("/relatorios")
+    @login_required
+    def relatorios():
+        hoje = date.today()
+        try:
+            mes = int(request.args.get("mes", hoje.month))
+            ano = int(request.args.get("ano", hoje.year))
+        except ValueError:
+            mes, ano = hoje.month, hoje.year
+
+        if not 1 <= mes <= 12:
+            mes = hoje.month
+
+        inicio = date(ano, mes, 1)
+        fim = date(ano + 1, 1, 1) if mes == 12 else date(ano, mes + 1, 1)
+
+        def no_periodo(consulta, campo):
+            return consulta.filter(campo >= inicio, campo < fim)
+
+        agendamentos = no_periodo(Appointment.query, Appointment.data)
+        ciclos = no_periodo(TreatmentCycle.query, TreatmentCycle.data_avaliacao)
+
+        if current_user.perfil != ADMIN_PROFILE:
+            agendamentos = agendamentos.filter(
+                Appointment.fisioterapeuta_id == current_user.id
+            )
+            ciclos = ciclos.filter(TreatmentCycle.fisioterapeuta_id == current_user.id)
+
+        itens = agendamentos.all()
+        lista_ciclos = ciclos.all()
+
+        def contar(status):
+            return sum(1 for item in itens if item.status == status)
+
+        realizados = contar("REALIZADO")
+        faltas = contar("FALTOU")
+        cancelados = contar("CANCELADO")
+        previstos = len(itens) - cancelados
+        taxa_falta = round(faltas * 100 / previstos, 1) if previstos else 0
+
+        por_regiao = {}
+        for ciclo in lista_ciclos:
+            rotulo = (ciclo.regiao or "OUTRO").capitalize()
+            por_regiao[rotulo] = por_regiao.get(rotulo, 0) + 1
+
+        por_horario = {}
+        for item in itens:
+            if item.status == "CANCELADO":
+                continue
+            rotulo = item.hora.strftime("%H:%M")
+            por_horario[rotulo] = por_horario.get(rotulo, 0) + 1
+
+        por_profissional = {}
+        if current_user.perfil == ADMIN_PROFILE:
+            for item in itens:
+                if item.status != "REALIZADO":
+                    continue
+                nome = item.fisioterapeuta.nome
+                por_profissional[nome] = por_profissional.get(nome, 0) + 1
+
+        return render_template(
+            "relatorios.html",
+            mes=mes,
+            ano=ano,
+            anos=range(hoje.year - 2, hoje.year + 2),
+            total=len(itens),
+            realizados=realizados,
+            faltas=faltas,
+            cancelados=cancelados,
+            taxa_falta=taxa_falta,
+            ciclos_abertos=len(lista_ciclos),
+            por_regiao=por_regiao,
+            por_horario=dict(sorted(por_horario.items())),
+            por_profissional=por_profissional,
+        )
 
 
 def register_error_handlers(app: Flask) -> None:
