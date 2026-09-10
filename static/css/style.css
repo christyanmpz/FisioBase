@@ -1076,6 +1076,145 @@ tbody tr:last-child td {
   line-height: 1.6;
 }
 
+/* Campos de formulário além de input */
+
+.field select,
+.field textarea {
+  width: 100%;
+  padding: 14px 15px;
+  color: var(--ink);
+  background: var(--white);
+  border: 1px solid #d9e3e2;
+  border-radius: 10px;
+  outline: 0;
+  font: inherit;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.field textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.field select:focus,
+.field textarea:focus {
+  border-color: #4fb7a7;
+  box-shadow: 0 0 0 4px rgba(79, 183, 167, 0.15);
+}
+
+.field small {
+  color: #9aa7a8;
+  font-size: 0.72rem;
+}
+
+/* Formulário em painel */
+
+.form {
+  display: grid;
+  gap: 20px;
+  max-width: 620px;
+  padding: 28px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 8px 28px rgba(40, 80, 80, 0.035);
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 4px;
+}
+
+/* Variações de botão */
+
+.button--ghost {
+  color: var(--navy);
+  background: transparent;
+  border: 1px solid #d9e3e2;
+}
+
+.button--ghost:hover {
+  background: #f0f7f5;
+}
+
+.button--small {
+  padding: 8px 12px;
+  gap: 6px;
+  font-size: 0.74rem;
+}
+
+.button--danger {
+  color: #8b3030;
+  background: #fff2f0;
+  border: 1px solid #efc5c0;
+}
+
+.button--danger:hover {
+  background: #ffe6e2;
+}
+
+/* Ações dentro de tabela */
+
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-actions form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.table-actions select {
+  padding: 7px 9px;
+  color: var(--ink);
+  background: var(--white);
+  border: 1px solid #d9e3e2;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 0.72rem;
+}
+
+.table-actions a {
+  color: #2e7d75;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.table-actions a:hover {
+  text-decoration: underline;
+}
+
+/* Navegação por dia na agenda */
+
+.day-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.day-nav a {
+  padding: 9px 13px;
+  color: #4d7f7d;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-size: 0.75rem;
+  text-decoration: none;
+}
+
+.day-nav a:hover {
+  color: var(--navy);
+  background: #f0f7f5;
+}
+
 @media (max-width: 980px) {
   .login-shell {
     grid-template-columns: 1fr;

@@ -9,10 +9,18 @@
         <p class="breadcrumb">Pacientes <span>/</span> {{ paciente.nome }}</p>
         <h1>Ciclos de tratamento</h1>
       </div>
-      <a class="nav-item" href="{{ url_for('novo_ciclo', paciente_id=paciente.id) }}">Novo ciclo</a>
+      <a class="button button--primary" href="{{ url_for('novo_ciclo', paciente_id=paciente.id) }}">Novo ciclo</a>
     </header>
 
     <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Histórico clínico</p>
+          <h2>Tratamentos do paciente</h2>
+        </div>
+        <span class="panel-count">{{ ciclos|length }} registros</span>
+      </div>
+
       {% if ciclos %}
       <div class="table-wrap">
         <table>
@@ -24,34 +32,44 @@
               <th scope="col">Modalidade</th>
               <th scope="col">Sessões</th>
               <th scope="col">Status</th>
-              <th scope="col">Encerrar</th>
+              <th scope="col">Ações</th>
             </tr>
           </thead>
           <tbody>
             {% for ciclo in ciclos %}
             <tr>
-              <td>{{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}</td>
+              <td><strong>{{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}</strong></td>
               <td>{{ ciclo.regiao|capitalize }}</td>
-              <td>{{ ciclo.modalidade|capitalize }}</td>
-              <td>{{ ciclo.total_sessoes }}</td>
-              <td>{{ ciclo.status|capitalize }}</td>
+              <td class="muted-cell">{{ ciclo.modalidade|capitalize }}</td>
+              <td class="muted-cell">{{ ciclo.total_sessoes }}</td>
               <td>
                 {% if ciclo.status == "ATIVO" %}
-                <form method="post" action="{{ url_for('encerrar_ciclo', ciclo_id=ciclo.id) }}">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <label class="sr-only" for="status-{{ ciclo.id }}">Motivo do encerramento</label>
-                  <select id="status-{{ ciclo.id }}" name="status" required>
-                    <option value="CONCLUIDO">Concluído</option>
-                    <option value="ALTA">Alta</option>
-                    <option value="ABANDONO">Abandono</option>
-                  </select>
-                  <button type="submit">Encerrar</button>
-                </form>
+                <span class="role-badge role-badge--fisioterapeuta">Em tratamento</span>
                 {% else %}
-                <span class="muted-cell">
-                  {{ ciclo.data_alta.strftime("%d/%m/%Y") if ciclo.data_alta else "—" }}
+                <span class="role-badge role-badge--admin">
+                  {{ {"CONCLUIDO": "Concluído", "ALTA": "Alta", "ABANDONO": "Abandono"}[ciclo.status] }}
                 </span>
                 {% endif %}
+              </td>
+              <td>
+                <div class="table-actions">
+                  {% if ciclo.status == "ATIVO" %}
+                  <form method="post" action="{{ url_for('encerrar_ciclo', ciclo_id=ciclo.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <label class="sr-only" for="status-{{ ciclo.id }}">Motivo do encerramento</label>
+                    <select id="status-{{ ciclo.id }}" name="status" required>
+                      <option value="CONCLUIDO">Concluído</option>
+                      <option value="ALTA">Alta</option>
+                      <option value="ABANDONO">Abandono</option>
+                    </select>
+                    <button class="button button--ghost button--small" type="submit">Encerrar</button>
+                  </form>
+                  {% else %}
+                  <span class="muted-cell">
+                    Encerrado em {{ ciclo.data_alta.strftime("%d/%m/%Y") if ciclo.data_alta else "—" }}
+                  </span>
+                  {% endif %}
+                </div>
               </td>
             </tr>
             {% endfor %}
@@ -60,7 +78,8 @@
       </div>
       {% else %}
       <div class="empty-state">
-        <h2>Nenhum ciclo de tratamento</h2>
+        <div class="empty-state__icon" aria-hidden="true">+</div>
+        <h3>Nenhum ciclo de tratamento</h3>
         <p>Abra o primeiro ciclo a partir da avaliação do paciente.</p>
       </div>
       {% endif %}

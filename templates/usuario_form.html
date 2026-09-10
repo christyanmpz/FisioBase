@@ -4,7 +4,12 @@
 {% block body_class %}app-page{% endblock %}
 
 {% block body %}
-    <h1>Novo usuário</h1>
+    <header class="topbar">
+      <div>
+        <p class="breadcrumb">Profissionais <span>/</span> Novo</p>
+        <h1>Novo usuário</h1>
+      </div>
+    </header>
 
     <form method="post" class="form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -34,7 +39,9 @@
         </select>
       </div>
 
-      <button type="submit">Criar usuário</button>
-      <a href="{{ url_for('listar_usuarios') }}">Cancelar</a>
+      <div class="form-actions">
+        <button class="button button--primary" type="submit">Criar usuário</button>
+        <a class="button button--ghost" href="{{ url_for('listar_usuarios') }}">Cancelar</a>
+      </div>
     </form>
 {% endblock %}

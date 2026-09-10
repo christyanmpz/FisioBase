@@ -327,11 +327,21 @@ def register_routes(app: Flask) -> None:
     @app.get("/pacientes")
     @login_required
     def listar_pacientes():
+        busca = request.args.get("q", "").strip()
+
         consulta = Patient.query
         if current_user.perfil != ADMIN_PROFILE:
             consulta = consulta.filter_by(fisioterapeuta_id=current_user.id)
+
+        if busca:
+            somente_digitos = "".join(c for c in busca if c.isdigit())
+            filtros = [Patient.nome.ilike(f"%{busca}%")]
+            if somente_digitos:
+                filtros.append(Patient.cpf.ilike(f"%{somente_digitos}%"))
+            consulta = consulta.filter(db.or_(*filtros))
+
         pacientes = consulta.order_by(Patient.nome).all()
-        return render_template("pacientes_lista.html", pacientes=pacientes)
+        return render_template("pacientes_lista.html", pacientes=pacientes, busca=busca)
 
     @app.route("/pacientes/novo", methods=["GET", "POST"])
     @login_required

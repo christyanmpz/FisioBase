@@ -42,6 +42,7 @@
         <label for="total_sessoes">Número de sessões</label>
         <input id="total_sessoes" name="total_sessoes" type="number"
                value="10" min="1" max="30" required>
+        <small>O padrão da clínica é um ciclo de 10 sessões.</small>
       </div>
 
       <div class="field">
@@ -49,7 +50,9 @@
         <textarea id="observacoes" name="observacoes" rows="4"></textarea>
       </div>
 
-      <button type="submit">Abrir ciclo</button>
-      <a href="{{ url_for('listar_ciclos', paciente_id=paciente.id) }}">Cancelar</a>
+      <div class="form-actions">
+        <button class="button button--primary" type="submit">Abrir ciclo</button>
+        <a class="button button--ghost" href="{{ url_for('listar_ciclos', paciente_id=paciente.id) }}">Cancelar</a>
+      </div>
     </form>
 {% endblock %}

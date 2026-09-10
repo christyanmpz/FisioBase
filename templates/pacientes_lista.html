@@ -1,48 +1,92 @@
 {% extends "base.html" %}
 
 {% block title %}Pacientes · FisioBase{% endblock %}
-
 {% block body_class %}app-page{% endblock %}
 
 {% block body %}
-    <header class="panel-heading">
+    <header class="topbar">
       <div>
-        <p class="eyebrow">Gestão</p>
+        <p class="breadcrumb">Gestão <span>/</span> Pacientes</p>
         <h1>Pacientes</h1>
       </div>
-      <a class="button" href="{{ url_for('novo_paciente') }}">Novo paciente</a>
-          </header>
+      <a class="button button--primary" href="{{ url_for('novo_paciente') }}">Novo paciente</a>
+    </header>
+
+        <form method="get" class="day-nav" role="search">
+      <label class="sr-only" for="q">Buscar paciente por nome ou CPF</label>
+      <input id="q" name="q" type="search" value="{{ busca }}"
+             placeholder="Buscar por nome ou CPF"
+             style="flex:1; max-width:340px; padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--white);">
+      <button class="button button--ghost button--small" type="submit">Buscar</button>
+      {% if busca %}
+      <a href="{{ url_for('listar_pacientes') }}">Limpar</a>
+      {% endif %}
+    </form>
+ <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Cadastro clínico</p>
+          <h2>Pacientes cadastrados</h2>
+        </div>
+        <span class="panel-count">{{ pacientes|length }} registros</span>
+      </div>
+
       {% if pacientes %}
-    <table class="data-table">
-      <caption class="sr-only">Lista de pacientes cadastrados</caption>
-      <thead>
-        <tr>
-          <th scope="col">Nome</th>
-          <th scope="col">CPF</th>
-          <th scope="col">Telefone</th>
-          <th scope="col">Situação</th>
-          <th scope="col">Ações</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for paciente in pacientes %}
-        <tr>
-          <td>{{ paciente.nome }}</td>
-          <td>{{ paciente.cpf or "—" }}</td>
-          <td>{{ paciente.telefone or "—" }}</td>
-          <td>{{ "Ativo" if paciente.ativo else "Inativo" }}</td>
-    <td>
-            <a href="{{ url_for('listar_ciclos', paciente_id=paciente.id) }}">Ciclos</a>
-            <a href="{{ url_for('editar_paciente', paciente_id=paciente.id) }}">Editar</a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <div class="empty-state">
-      <h2>Nenhum paciente cadastrado</h2>
-      <p>Comece cadastrando o primeiro paciente do consultório.</p>
-    </div>
-    {% endif %}
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Lista de pacientes cadastrados</caption>
+          <thead>
+            <tr>
+              <th scope="col">Paciente</th>
+              <th scope="col">CPF</th>
+              <th scope="col">Telefone</th>
+              <th scope="col">Situação</th>
+              <th scope="col">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for paciente in pacientes %}
+            <tr>
+              <td>
+                <div class="table-person">
+                  <span class="avatar avatar--table avatar--green" aria-hidden="true">{{ paciente.nome[0] }}</span>
+                  <strong>{{ paciente.nome }}</strong>
+                </div>
+              </td>
+              <td class="muted-cell">{{ paciente.cpf or "—" }}</td>
+              <td class="muted-cell">{{ paciente.telefone or "—" }}</td>
+              <td>
+                <span class="status-badge">
+                  <span class="status-dot" aria-hidden="true"></span>
+                  {{ "Ativo" if paciente.ativo else "Inativo" }}
+                </span>
+              </td>
+              <td>
+                <div class="table-actions">
+                  <a href="{{ url_for('listar_ciclos', paciente_id=paciente.id) }}">Ciclos</a>
+                  <a href="{{ url_for('editar_paciente', paciente_id=paciente.id) }}">Editar</a>
+                                    {% if paciente.ativo %}
+                  <form method="post" action="{{ url_for('desativar_paciente', paciente_id=paciente.id) }}"
+                        onsubmit="return confirm('Desativar {{ paciente.nome }}? O histórico será mantido.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="button button--danger button--small" type="submit">Desativar</button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+            <div class="empty-state">
+        <div class="empty-state__icon" aria-hidden="true">+</div>
+        <h3>{{ "Nenhum paciente encontrado" if busca else "Nenhum paciente cadastrado" }}</h3>
+        <p>
+          {{ "Tente outro nome ou CPF." if busca else "Comece cadastrando o primeiro paciente do consultório." }}
+        </p>
+      </div>
+      {% endif %}
+    </section>
 {% endblock %}

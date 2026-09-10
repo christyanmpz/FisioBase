@@ -4,10 +4,13 @@
 {% block body_class %}app-page{% endblock %}
 
 {% block body %}
-    <header class="topbar">
+      <div>
+            <header class="topbar">
       <div>
         <p class="breadcrumb">Agenda <span>/</span> Novo</p>
         <h1>Novo agendamento</h1>
+      </div>
+    </header>
       </div>
     </header>
 
@@ -66,8 +69,10 @@
         <textarea id="observacoes" name="observacoes" rows="3"></textarea>
       </div>
 
-      <button type="submit">Agendar</button>
-      <a href="{{ url_for('agenda') }}">Cancelar</a>
+          <div class="form-actions">
+        <button class="button button--primary" type="submit">Agendar</button>
+        <a class="button button--ghost" href="{{ url_for('agenda') }}">Cancelar</a>
+      </div>
     </form>
 
     <script>
@@ -92,8 +97,9 @@
       })();
     </script>
     {% else %}
-    <div class="empty-state">
-      <h2>Nenhum paciente disponível</h2>
+        <div class="empty-state">
+      <div class="empty-state__icon" aria-hidden="true">+</div>
+      <h3>Nenhum paciente disponível</h3>
       <p>Cadastre um paciente antes de criar agendamentos.</p>
     </div>
     {% endif %}

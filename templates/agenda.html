@@ -9,16 +9,31 @@
         <p class="breadcrumb">Gestão <span>/</span> Agenda</p>
         <h1>{{ data_agenda.strftime("%d/%m/%Y") }}</h1>
       </div>
-      <a class="nav-item" href="{{ url_for('novo_agendamento') }}">Novo agendamento</a>
+      <a class="button button--primary" href="{{ url_for('novo_agendamento') }}">Novo agendamento</a>
     </header>
 
-    <nav class="topbar" aria-label="Navegação por dia">
+       <nav class="day-nav" aria-label="Navegação por dia">
       <a href="{{ url_for('agenda', data=dia_anterior.isoformat()) }}">← Dia anterior</a>
       <a href="{{ url_for('agenda') }}">Hoje</a>
       <a href="{{ url_for('agenda', data=dia_seguinte.isoformat()) }}">Próximo dia →</a>
+
+      <form method="get" style="display:flex; gap:8px; align-items:center; margin-left:auto;">
+        <label class="sr-only" for="data">Ir para a data</label>
+        <input id="data" name="data" type="date" value="{{ data_agenda.isoformat() }}"
+               style="padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--white);">
+        <button class="button button--ghost button--small" type="submit">Ir</button>
+      </form>
     </nav>
 
     <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Atendimentos do dia</p>
+          <h2>Agenda</h2>
+        </div>
+        <span class="panel-count">{{ agendamentos|length }} registros</span>
+      </div>
+
       {% if agendamentos %}
       <div class="table-wrap">
         <table>
@@ -36,28 +51,39 @@
           <tbody>
             {% for item in agendamentos %}
             <tr>
-              <td>{{ item.hora.strftime("%H:%M") }}</td>
-              <td>{{ item.paciente.nome if item.paciente else "—" }}</td>
-              <td>{{ "Avaliação" if item.tipo == "AVALIACAO" else "Sessão" }}</td>
+              <td><strong>{{ item.hora.strftime("%H:%M") }}</strong></td>
               <td>
+                <div class="table-person">
+                  <span class="avatar avatar--table avatar--green" aria-hidden="true">{{ item.paciente.nome[0] if item.paciente else "?" }}</span>
+                  <strong>{{ item.paciente.nome if item.paciente else "—" }}</strong>
+                </div>
+              </td>
+              <td>
+                <span class="role-badge role-badge--{{ 'admin' if item.tipo == 'AVALIACAO' else 'fisioterapeuta' }}">
+                  {{ "Avaliação" if item.tipo == "AVALIACAO" else "Sessão" }}
+                </span>
+              </td>
+              <td class="muted-cell">
                 {% if item.numero_sessao and item.ciclo %}
                   {{ item.numero_sessao }} de {{ item.ciclo.total_sessoes }}
                 {% else %}—{% endif %}
               </td>
               <td class="muted-cell">{{ item.fisioterapeuta.nome }}</td>
               <td>
-                <form method="post" action="{{ url_for('alterar_status_agendamento', agendamento_id=item.id) }}">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <label class="sr-only" for="status-{{ item.id }}">Status do agendamento</label>
-                  <select id="status-{{ item.id }}" name="status">
-                    <option value="AGENDADO" {% if item.status == "AGENDADO" %}selected{% endif %}>Agendado</option>
-                    <option value="CONFIRMADO" {% if item.status == "CONFIRMADO" %}selected{% endif %}>Confirmado</option>
-                    <option value="REALIZADO" {% if item.status == "REALIZADO" %}selected{% endif %}>Realizado</option>
-                    <option value="FALTOU" {% if item.status == "FALTOU" %}selected{% endif %}>Faltou</option>
-                    <option value="CANCELADO" {% if item.status == "CANCELADO" %}selected{% endif %}>Cancelado</option>
-                  </select>
-                  <button type="submit">Salvar</button>
-                </form>
+                <div class="table-actions">
+                  <form method="post" action="{{ url_for('alterar_status_agendamento', agendamento_id=item.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <label class="sr-only" for="status-{{ item.id }}">Status do agendamento</label>
+                    <select id="status-{{ item.id }}" name="status">
+                      <option value="AGENDADO" {% if item.status == "AGENDADO" %}selected{% endif %}>Agendado</option>
+                      <option value="CONFIRMADO" {% if item.status == "CONFIRMADO" %}selected{% endif %}>Confirmado</option>
+                      <option value="REALIZADO" {% if item.status == "REALIZADO" %}selected{% endif %}>Realizado</option>
+                      <option value="FALTOU" {% if item.status == "FALTOU" %}selected{% endif %}>Faltou</option>
+                      <option value="CANCELADO" {% if item.status == "CANCELADO" %}selected{% endif %}>Cancelado</option>
+                    </select>
+                    <button class="button button--ghost button--small" type="submit">Salvar</button>
+                  </form>
+                </div>
               </td>
             </tr>
             {% endfor %}
@@ -66,7 +92,8 @@
       </div>
       {% else %}
       <div class="empty-state">
-        <h2>Nenhum agendamento neste dia</h2>
+        <div class="empty-state__icon" aria-hidden="true">◷</div>
+        <h3>Nenhum agendamento neste dia</h3>
         <p>Use o botão acima para agendar uma avaliação ou sessão.</p>
       </div>
       {% endif %}

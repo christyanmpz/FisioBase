@@ -1,24 +1,32 @@
 {% extends "base.html" %}
 
-{% block title %}Usuários · FisioBase{% endblock %}
+{% block title %}Profissionais · FisioBase{% endblock %}
 {% block body_class %}app-page{% endblock %}
 
 {% block body %}
     <header class="topbar">
       <div>
-        <p class="breadcrumb">Gestão <span>/</span> Usuários</p>
-        <h1>Usuários do sistema</h1>
+        <p class="breadcrumb">Gestão <span>/</span> Profissionais</p>
+        <h1>Profissionais</h1>
       </div>
-      <a class="nav-item" href="{{ url_for('novo_usuario') }}">Novo usuário</a>
+      <a class="button button--primary" href="{{ url_for('novo_usuario') }}">Novo usuário</a>
     </header>
 
     <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Controle de acesso</p>
+          <h2>Usuários do sistema</h2>
+        </div>
+        <span class="panel-count">{{ usuarios|length }} registros</span>
+      </div>
+
       <div class="table-wrap">
         <table>
           <caption class="sr-only">Lista de usuários do sistema</caption>
           <thead>
             <tr>
-              <th scope="col">Nome</th>
+              <th scope="col">Profissional</th>
               <th scope="col">E-mail</th>
               <th scope="col">Perfil</th>
               <th scope="col">Status</th>
@@ -28,17 +36,35 @@
           <tbody>
             {% for usuario in usuarios %}
             <tr>
-              <td><strong>{{ usuario.nome }}</strong></td>
-              <td class="muted-cell">{{ usuario.email }}</td>
-              <td>{{ "Administrador" if usuario.perfil == "ADMIN" else "Fisioterapeuta" }}</td>
-              <td>{{ "Ativo" if usuario.ativo else "Inativo" }}</td>
               <td>
-                {% if usuario.ativo and usuario.id != current_user.id %}
-                <form method="post" action="{{ url_for('desativar_usuario', usuario_id=usuario.id) }}">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <button type="submit">Desativar</button>
-                </form>
-                {% endif %}
+                <div class="table-person">
+                  <span class="avatar avatar--table {% if usuario.perfil == 'ADMIN' %}avatar--admin{% else %}avatar--green{% endif %}" aria-hidden="true">{{ usuario.nome[0] }}</span>
+                  <strong>{{ usuario.nome }}</strong>
+                </div>
+              </td>
+              <td class="muted-cell">{{ usuario.email }}</td>
+              <td>
+                <span class="role-badge role-badge--{{ usuario.perfil|lower }}">
+                  {{ "Administrador" if usuario.perfil == "ADMIN" else "Fisioterapeuta" }}
+                </span>
+              </td>
+              <td>
+                <span class="status-badge">
+                  <span class="status-dot" aria-hidden="true"></span>
+                  {{ "Ativo" if usuario.ativo else "Inativo" }}
+                </span>
+              </td>
+              <td>
+                <div class="table-actions">
+                  {% if usuario.ativo and usuario.id != current_user.id %}
+                  <form method="post" action="{{ url_for('desativar_usuario', usuario_id=usuario.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="button button--danger button--small" type="submit">Desativar</button>
+                  </form>
+                  {% else %}
+                  <span class="muted-cell">—</span>
+                  {% endif %}
+                </div>
               </td>
             </tr>
             {% endfor %}
