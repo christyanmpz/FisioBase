@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Novo agendamento · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar">
+      <div>
+        <p class="breadcrumb">Agenda <span>/</span> Novo</p>
+        <h1>Novo agendamento</h1>
+      </div>
+    </header>
+
+    {% if pacientes %}
+    <form method="post" class="form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="field">
+        <label for="paciente_id">Paciente</label>
+        <select id="paciente_id" name="paciente_id" required autofocus>
+          <option value="">Selecione</option>
+          {% for paciente in pacientes %}
+          <option value="{{ paciente.id }}">{{ paciente.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="tipo">Tipo</label>
+        <select id="tipo" name="tipo" required>
+          <option value="AVALIACAO">Avaliação</option>
+          <option value="SESSAO">Sessão</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="ciclo_id">Ciclo de tratamento</label>
+        <select id="ciclo_id" name="ciclo_id">
+          <option value="">Nenhum (avaliação)</option>
+          {% for ciclo in ciclos %}
+          <option value="{{ ciclo.id }}" data-paciente="{{ ciclo.paciente_id }}">
+            {{ ciclo.paciente.nome }} — {{ ciclo.regiao|capitalize }},
+            avaliado em {{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}
+          </option>
+          {% endfor %}
+        </select>
+        <small>Obrigatório para sessões. A numeração é automática.</small>
+      </div>
+
+      <div class="field">
+        <label for="data">Data</label>
+        <input id="data" name="data" type="date" required>
+      </div>
+
+      <div class="field">
+        <label for="hora">Horário</label>
+        <select id="hora" name="hora" required>
+          {% for horario in horarios %}
+          <option value="{{ horario }}">{{ horario }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="observacoes">Observações</label>
+        <textarea id="observacoes" name="observacoes" rows="3"></textarea>
+      </div>
+
+      <button type="submit">Agendar</button>
+      <a href="{{ url_for('agenda') }}">Cancelar</a>
+    </form>
+
+    <script>
+      (function () {
+        const paciente = document.getElementById("paciente_id");
+        const ciclo = document.getElementById("ciclo_id");
+        const opcoes = Array.from(ciclo.options);
+
+        function filtrarCiclos() {
+          const escolhido = paciente.value;
+          ciclo.innerHTML = "";
+          opcoes.forEach(function (opcao) {
+            const dono = opcao.dataset.paciente;
+            if (!dono || dono === escolhido) {
+              ciclo.appendChild(opcao);
+            }
+          });
+        }
+
+        paciente.addEventListener("change", filtrarCiclos);
+        filtrarCiclos();
+      })();
+    </script>
+    {% else %}
+    <div class="empty-state">
+      <h2>Nenhum paciente disponível</h2>
+      <p>Cadastre um paciente antes de criar agendamentos.</p>
+    </div>
+    {% endif %}
+{% endblock %}

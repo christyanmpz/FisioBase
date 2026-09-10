@@ -97,3 +97,37 @@ class TreatmentCycle(db.Model):
         if usuario.perfil == ADMIN_PROFILE:
             return True
         return self.fisioterapeuta_id == usuario.id
+
+
+class Appointment(db.Model):
+    __tablename__ = "agendamentos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tipo = db.Column(db.String(20), nullable=False)
+    paciente_id = db.Column(db.Integer, db.ForeignKey("pacientes.id"), nullable=True)
+    grupo_id = db.Column(db.Integer, nullable=True)
+    ciclo_id = db.Column(
+        db.Integer, db.ForeignKey("ciclos_tratamento.id"), nullable=True
+    )
+    fisioterapeuta_id = db.Column(
+        db.Integer, db.ForeignKey("usuarios.id"), nullable=False
+    )
+    data = db.Column(db.Date, nullable=False)
+    hora = db.Column(db.Time, nullable=False)
+    duracao_min = db.Column(db.Integer, nullable=False, default=30)
+    numero_sessao = db.Column(db.Integer, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default="AGENDADO")
+    observacoes = db.Column(db.Text, nullable=True)
+    criado_em = db.Column(
+        db.DateTime(timezone=True), nullable=False, server_default=db.func.now()
+    )
+
+    paciente = db.relationship("Patient", backref="agendamentos")
+    ciclo = db.relationship("TreatmentCycle", backref="agendamentos")
+    fisioterapeuta = db.relationship("User", backref="agendamentos")
+
+    def acessivel_por(self, usuario) -> bool:
+        """Um ADMIN vê qualquer agendamento; um fisioterapeuta, só os seus."""
+        if usuario.perfil == ADMIN_PROFILE:
+            return True
+        return self.fisioterapeuta_id == usuario.id

@@ -14,9 +14,11 @@
         <input id="nome" name="nome" type="text" required autofocus>
       </div>
 
-      <div class="field">
+            <div class="field">
         <label for="cpf">CPF</label>
-        <input id="cpf" name="cpf" type="text" inputmode="numeric">
+        <input id="cpf" name="cpf" type="text" inputmode="numeric"
+               maxlength="14" placeholder="000.000.000-00"
+               autocomplete="off">
       </div>
 
       <div class="field">
@@ -57,4 +59,27 @@
       <button type="submit">Cadastrar paciente</button>
       <a href="{{ url_for('listar_pacientes') }}">Cancelar</a>
     </form>
+
+
+        <script>
+      (function () {
+        const campo = document.getElementById("cpf");
+        if (!campo) return;
+
+        campo.addEventListener("input", function () {
+          let numeros = campo.value.replace(/\D/g, "").slice(0, 11);
+          let formatado = numeros;
+
+          if (numeros.length > 9) {
+            formatado = numeros.replace(/(\d{3})(\d{3})(\d{3})(\d+)/, "$1.$2.$3-$4");
+          } else if (numeros.length > 6) {
+            formatado = numeros.replace(/(\d{3})(\d{3})(\d+)/, "$1.$2.$3");
+          } else if (numeros.length > 3) {
+            formatado = numeros.replace(/(\d{3})(\d+)/, "$1.$2");
+          }
+
+          campo.value = formatado;
+        });
+      })();
+    </script>
 {% endblock %}

@@ -2,7 +2,7 @@
 
 from functools import wraps
 import os
-from datetime import date
+from datetime import date, time, timedelta
 
 try:
     from dotenv import load_dotenv
@@ -34,6 +34,7 @@ from sqlalchemy.pool import NullPool
 from models import (
     ADMIN_PROFILE,
     PHYSIOTHERAPIST_PROFILE,
+    Appointment,
     Patient,
     TreatmentCycle,
     User,
@@ -50,6 +51,9 @@ csrf = CSRFProtect()
 REGIOES = ("OMBRO", "JOELHO", "COLUNA", "OUTRO")
 MODALIDADES = ("INDIVIDUAL", "GRUPO")
 STATUS_ENCERRAMENTO = ("CONCLUIDO", "ALTA", "ABANDONO")
+LIMITE_POR_HORARIO = 2
+STATUS_AGENDAMENTO = ("AGENDADO", "CONFIRMADO", "REALIZADO", "CANCELADO", "FALTOU")
+HORARIOS = [f"{h:02d}:{m:02d}" for h in range(8, 17) for m in (0, 30)]
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -132,6 +136,22 @@ def user_payload(user: User) -> dict[str, str | int | bool | None]:
         "perfil": user.perfil,
         "ativo": user.ativo,
     }
+
+
+def cpf_valido(cpf: str) -> bool:
+    """Valida os dois dígitos verificadores do CPF."""
+    if len(cpf) != 11 or cpf == cpf[0] * 11:
+        return False
+
+    for posicao in (9, 10):
+        soma = sum(int(cpf[i]) * (posicao + 1 - i) for i in range(posicao))
+        digito = (soma * 10) % 11
+        if digito == 10:
+            digito = 0
+        if digito != int(cpf[posicao]):
+            return False
+
+    return True
 
 
 def register_routes(app: Flask) -> None:
@@ -286,7 +306,16 @@ def register_routes(app: Flask) -> None:
             paciente.data_nascimento = None
 
         paciente.nome = nome
-        paciente.cpf = request.form.get("cpf", "").strip() or None
+        cpf = "".join(c for c in request.form.get("cpf", "") if c.isdigit())
+        if cpf:
+            if len(cpf) != 11:
+                return "O CPF deve ter 11 dígitos."
+            if not cpf_valido(cpf):
+                return "CPF inválido. Confira os números digitados."
+            existente = db.session.scalar(db.select(Patient).where(Patient.cpf == cpf))
+            if existente and existente.id != paciente.id:
+                return "Já existe um paciente cadastrado com este CPF."
+        paciente.cpf = cpf or None
         paciente.telefone = request.form.get("telefone", "").strip() or None
         paciente.email = request.form.get("email", "").strip() or None
         paciente.endereco = request.form.get("endereco", "").strip() or None
@@ -513,6 +542,168 @@ def register_routes(app: Flask) -> None:
         db.session.commit()
         flash("Ciclo encerrado.", "success")
         return redirect(url_for("listar_ciclos", paciente_id=ciclo.paciente_id))
+
+    # ------------------------------------------------------------------
+    # Agenda
+    # ------------------------------------------------------------------
+
+    def _horario_disponivel(fisioterapeuta_id, data_agenda, hora, ignorar_id=None):
+        """Verifica o limite de 2 pacientes por profissional no mesmo horário."""
+        consulta = Appointment.query.filter(
+            Appointment.fisioterapeuta_id == fisioterapeuta_id,
+            Appointment.data == data_agenda,
+            Appointment.hora == hora,
+            Appointment.status != "CANCELADO",
+            Appointment.tipo != "GRUPO",
+        )
+        if ignorar_id is not None:
+            consulta = consulta.filter(Appointment.id != ignorar_id)
+        return consulta.count() < LIMITE_POR_HORARIO
+
+    @app.get("/agenda")
+    @login_required
+    def agenda():
+        dia = request.args.get("data", "").strip()
+        try:
+            data_agenda = date.fromisoformat(dia) if dia else date.today()
+        except ValueError:
+            data_agenda = date.today()
+
+        consulta = Appointment.query.filter(Appointment.data == data_agenda)
+        if current_user.perfil != ADMIN_PROFILE:
+            consulta = consulta.filter(Appointment.fisioterapeuta_id == current_user.id)
+
+        agendamentos = consulta.order_by(Appointment.hora).all()
+        return render_template(
+            "agenda.html",
+            agendamentos=agendamentos,
+            data_agenda=data_agenda,
+            dia_anterior=data_agenda - timedelta(days=1),
+            dia_seguinte=data_agenda + timedelta(days=1),
+        )
+
+    @app.route("/agenda/novo", methods=["GET", "POST"])
+    @login_required
+    def novo_agendamento():
+        if current_user.perfil == ADMIN_PROFILE:
+            pacientes = Patient.query.filter_by(ativo=True).order_by(Patient.nome).all()
+        else:
+            pacientes = (
+                Patient.query.filter_by(ativo=True, fisioterapeuta_id=current_user.id)
+                .order_by(Patient.nome)
+                .all()
+            )
+
+        ciclos = (
+            TreatmentCycle.query.filter(
+                TreatmentCycle.status == "ATIVO",
+                TreatmentCycle.paciente_id.in_([p.id for p in pacientes] or [0]),
+            )
+            .order_by(TreatmentCycle.data_avaliacao.desc())
+            .all()
+        )
+
+        def form(codigo=200):
+            return (
+                render_template(
+                    "agenda_form.html",
+                    pacientes=pacientes,
+                    horarios=HORARIOS,
+                    ciclos=ciclos,
+                ),
+                codigo,
+            )
+
+        if request.method == "POST":
+            tipo = request.form.get("tipo", "").strip().upper()
+            if tipo not in ("AVALIACAO", "SESSAO"):
+                flash("Tipo de agendamento inválido.", "error")
+                return form(400)
+
+            paciente = db.session.get(
+                Patient, int(request.form.get("paciente_id") or 0)
+            )
+            if paciente is None:
+                flash("Selecione um paciente.", "error")
+                return form(400)
+            if not paciente.acessivel_por(current_user):
+                abort(403)
+
+            try:
+                data_agenda = date.fromisoformat(request.form.get("data", "").strip())
+                hora = time.fromisoformat(request.form.get("hora", "").strip())
+            except ValueError:
+                flash("Informe data e horário válidos.", "error")
+                return form(400)
+
+            fisioterapeuta_id = paciente.fisioterapeuta_id or current_user.id
+
+            if not _horario_disponivel(fisioterapeuta_id, data_agenda, hora):
+                flash(
+                    "Este horário já tem 2 pacientes para o profissional. "
+                    "Escolha outro horário.",
+                    "error",
+                )
+                return form(400)
+
+            ciclo = None
+            ciclo_id = request.form.get("ciclo_id", "").strip()
+            if ciclo_id:
+                ciclo = db.session.get(TreatmentCycle, int(ciclo_id))
+                if ciclo is None or ciclo.paciente_id != paciente.id:
+                    flash("Ciclo inválido para este paciente.", "error")
+                    return form(400)
+
+            if tipo == "SESSAO" and ciclo is None:
+                flash("Selecione o ciclo de tratamento da sessão.", "error")
+                return form(400)
+
+            numero_sessao = None
+            if tipo == "SESSAO":
+                sessoes = Appointment.query.filter(
+                    Appointment.ciclo_id == ciclo.id,
+                    Appointment.tipo == "SESSAO",
+                    Appointment.status != "CANCELADO",
+                ).count()
+                numero_sessao = sessoes + 1
+
+            agendamento = Appointment(
+                tipo=tipo,
+                paciente_id=paciente.id,
+                ciclo_id=ciclo.id if ciclo else None,
+                fisioterapeuta_id=fisioterapeuta_id,
+                data=data_agenda,
+                hora=hora,
+                duracao_min=30,
+                numero_sessao=numero_sessao,
+                status="AGENDADO",
+                observacoes=request.form.get("observacoes", "").strip() or None,
+            )
+            db.session.add(agendamento)
+            db.session.commit()
+            flash("Agendamento criado.", "success")
+            return redirect(url_for("agenda", data=data_agenda.isoformat()))
+
+        return form()
+
+    @app.post("/agendamentos/<int:agendamento_id>/status")
+    @login_required
+    def alterar_status_agendamento(agendamento_id: int):
+        agendamento = db.session.get(Appointment, agendamento_id)
+        if agendamento is None:
+            abort(404)
+        if not agendamento.acessivel_por(current_user):
+            abort(403)
+
+        novo_status = request.form.get("status", "").strip().upper()
+        if novo_status not in STATUS_AGENDAMENTO:
+            flash("Status inválido.", "error")
+            return redirect(url_for("agenda", data=agendamento.data.isoformat()))
+
+        agendamento.status = novo_status
+        db.session.commit()
+        flash("Status atualizado.", "success")
+        return redirect(url_for("agenda", data=agendamento.data.isoformat()))
 
 
 def register_error_handlers(app: Flask) -> None:
