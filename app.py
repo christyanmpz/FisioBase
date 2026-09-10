@@ -31,7 +31,14 @@ from flask_login import (
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy.pool import NullPool
 
-from models import ADMIN_PROFILE, PHYSIOTHERAPIST_PROFILE, Patient, User, db
+from models import (
+    ADMIN_PROFILE,
+    PHYSIOTHERAPIST_PROFILE,
+    Patient,
+    TreatmentCycle,
+    User,
+    db,
+)
 
 login_manager = LoginManager()
 login_manager.login_view = "login"
@@ -39,6 +46,10 @@ login_manager.login_message = "Entre para acessar esta área."
 login_manager.login_message_category = "info"
 
 csrf = CSRFProtect()
+
+REGIOES = ("OMBRO", "JOELHO", "COLUNA", "OUTRO")
+MODALIDADES = ("INDIVIDUAL", "GRUPO")
+STATUS_ENCERRAMENTO = ("CONCLUIDO", "ALTA", "ABANDONO")
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -255,6 +266,10 @@ def register_routes(app: Flask) -> None:
     def physiotherapist_dashboard():
         return render_template("dashboard_fisioterapeuta.html")
 
+    # ------------------------------------------------------------------
+    # Pacientes
+    # ------------------------------------------------------------------
+
     def _dados_do_formulario(paciente):
         """Preenche o paciente com o formulário. Devolve a mensagem de erro ou None."""
         nome = request.form.get("nome", "").strip()
@@ -341,6 +356,10 @@ def register_routes(app: Flask) -> None:
         flash(f"{paciente.nome} foi desativado.", "success")
         return redirect(url_for("listar_pacientes"))
 
+    # ------------------------------------------------------------------
+    # Usuários
+    # ------------------------------------------------------------------
+
     @app.get("/usuarios")
     @role_required(ADMIN_PROFILE)
     def listar_usuarios():
@@ -399,10 +418,101 @@ def register_routes(app: Flask) -> None:
         flash(f"{usuario.nome} foi desativado.", "success")
         return redirect(url_for("listar_usuarios"))
 
-        paciente.ativo = False
+    # ------------------------------------------------------------------
+    # Ciclos de tratamento
+    # ------------------------------------------------------------------
+
+    @app.get("/pacientes/<int:paciente_id>/ciclos")
+    @login_required
+    def listar_ciclos(paciente_id: int):
+        paciente = db.session.get(Patient, paciente_id)
+        if paciente is None:
+            abort(404)
+        if not paciente.acessivel_por(current_user):
+            abort(403)
+
+        ciclos = (
+            TreatmentCycle.query.filter_by(paciente_id=paciente.id)
+            .order_by(TreatmentCycle.data_avaliacao.desc())
+            .all()
+        )
+        return render_template("ciclos_lista.html", paciente=paciente, ciclos=ciclos)
+
+    @app.route("/pacientes/<int:paciente_id>/ciclos/novo", methods=["GET", "POST"])
+    @login_required
+    def novo_ciclo(paciente_id: int):
+        paciente = db.session.get(Patient, paciente_id)
+        if paciente is None:
+            abort(404)
+        if not paciente.acessivel_por(current_user):
+            abort(403)
+
+        if request.method == "POST":
+            regiao = request.form.get("regiao", "").strip().upper()
+            modalidade = request.form.get("modalidade", "INDIVIDUAL").strip().upper()
+
+            if regiao not in REGIOES:
+                flash("Selecione uma região válida.", "error")
+                return render_template("ciclo_form.html", paciente=paciente), 400
+
+            if modalidade not in MODALIDADES:
+                flash("Modalidade inválida.", "error")
+                return render_template("ciclo_form.html", paciente=paciente), 400
+
+            try:
+                data_avaliacao = date.fromisoformat(
+                    request.form.get("data_avaliacao", "").strip()
+                )
+            except ValueError:
+                flash("Informe uma data de avaliação válida.", "error")
+                return render_template("ciclo_form.html", paciente=paciente), 400
+
+            try:
+                sessoes = int(request.form.get("total_sessoes", "10").strip())
+            except ValueError:
+                flash("Número de sessões inválido.", "error")
+                return render_template("ciclo_form.html", paciente=paciente), 400
+
+            if not 1 <= sessoes <= 30:
+                flash("O número de sessões deve estar entre 1 e 30.", "error")
+                return render_template("ciclo_form.html", paciente=paciente), 400
+
+            ciclo = TreatmentCycle(
+                paciente_id=paciente.id,
+                fisioterapeuta_id=paciente.fisioterapeuta_id or current_user.id,
+                regiao=regiao,
+                modalidade=modalidade,
+                data_avaliacao=data_avaliacao,
+                total_sessoes=sessoes,
+                status="ATIVO",
+                observacoes=request.form.get("observacoes", "").strip() or None,
+            )
+            db.session.add(ciclo)
+            db.session.commit()
+            flash("Ciclo de tratamento aberto.", "success")
+            return redirect(url_for("listar_ciclos", paciente_id=paciente.id))
+
+        return render_template("ciclo_form.html", paciente=paciente)
+
+    @app.post("/ciclos/<int:ciclo_id>/encerrar")
+    @login_required
+    def encerrar_ciclo(ciclo_id: int):
+        ciclo = db.session.get(TreatmentCycle, ciclo_id)
+        if ciclo is None:
+            abort(404)
+        if not ciclo.acessivel_por(current_user):
+            abort(403)
+
+        novo_status = request.form.get("status", "").strip().upper()
+        if novo_status not in STATUS_ENCERRAMENTO:
+            flash("Status de encerramento inválido.", "error")
+            return redirect(url_for("listar_ciclos", paciente_id=ciclo.paciente_id))
+
+        ciclo.status = novo_status
+        ciclo.data_alta = date.today()
         db.session.commit()
-        flash(f"{paciente.nome} foi desativado.", "success")
-        return redirect(url_for("listar_pacientes"))
+        flash("Ciclo encerrado.", "success")
+        return redirect(url_for("listar_ciclos", paciente_id=ciclo.paciente_id))
 
 
 def register_error_handlers(app: Flask) -> None:

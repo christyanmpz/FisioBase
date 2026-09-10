@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Novo ciclo · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar">
+      <div>
+        <p class="breadcrumb">Pacientes <span>/</span> {{ paciente.nome }}</p>
+        <h1>Novo ciclo de tratamento</h1>
+      </div>
+    </header>
+
+    <form method="post" class="form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="field">
+        <label for="data_avaliacao">Data da avaliação</label>
+        <input id="data_avaliacao" name="data_avaliacao" type="date" required autofocus>
+      </div>
+
+      <div class="field">
+        <label for="regiao">Região</label>
+        <select id="regiao" name="regiao" required>
+          <option value="">Selecione</option>
+          <option value="OMBRO">Ombro</option>
+          <option value="JOELHO">Joelho</option>
+          <option value="COLUNA">Coluna</option>
+          <option value="OUTRO">Outro</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="modalidade">Modalidade</label>
+        <select id="modalidade" name="modalidade" required>
+          <option value="INDIVIDUAL">Individual</option>
+          <option value="GRUPO">Grupo</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="total_sessoes">Número de sessões</label>
+        <input id="total_sessoes" name="total_sessoes" type="number"
+               value="10" min="1" max="30" required>
+      </div>
+
+      <div class="field">
+        <label for="observacoes">Observações da avaliação</label>
+        <textarea id="observacoes" name="observacoes" rows="4"></textarea>
+      </div>
+
+      <button type="submit">Abrir ciclo</button>
+      <a href="{{ url_for('listar_ciclos', paciente_id=paciente.id) }}">Cancelar</a>
+    </form>
+{% endblock %}

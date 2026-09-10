@@ -4,7 +4,6 @@ from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import check_password_hash, generate_password_hash
 
-
 db = SQLAlchemy()
 
 ADMIN_PROFILE = "ADMIN"
@@ -22,7 +21,9 @@ class User(UserMixin, db.Model):
     ativo = db.Column(db.Boolean, nullable=False)
     falhas_login = db.Column(db.Integer, nullable=False)
     bloqueado_ate = db.Column(db.DateTime(timezone=True), nullable=True)
-    criado_em = db.Column(db.DateTime(timezone=True), nullable=False, server_default=db.func.now())
+    criado_em = db.Column(
+        db.DateTime(timezone=True), nullable=False, server_default=db.func.now()
+    )
 
     @property
     def dashboard_endpoint(self) -> str:
@@ -38,6 +39,7 @@ class User(UserMixin, db.Model):
     def check_password(self, password: str) -> bool:
         return check_password_hash(self.senha_hash, password)
 
+
 class Patient(db.Model):
     __tablename__ = "pacientes"
 
@@ -52,13 +54,46 @@ class Patient(db.Model):
     diagnostico = db.Column(db.Text, nullable=True)
     observacoes = db.Column(db.Text, nullable=True)
     ativo = db.Column(db.Boolean, nullable=False, default=True)
-    fisioterapeuta_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
-    criado_em = db.Column(db.DateTime(timezone=True), nullable=False, server_default=db.func.now())
+    fisioterapeuta_id = db.Column(
+        db.Integer, db.ForeignKey("usuarios.id"), nullable=True
+    )
+    criado_em = db.Column(
+        db.DateTime(timezone=True), nullable=False, server_default=db.func.now()
+    )
 
     fisioterapeuta = db.relationship("User", backref="pacientes")
 
     def acessivel_por(self, usuario) -> bool:
         """Um ADMIN vê qualquer paciente; um fisioterapeuta, só os seus."""
+        if usuario.perfil == ADMIN_PROFILE:
+            return True
+        return self.fisioterapeuta_id == usuario.id
+
+
+class TreatmentCycle(db.Model):
+    __tablename__ = "ciclos_tratamento"
+
+    id = db.Column(db.Integer, primary_key=True)
+    paciente_id = db.Column(db.Integer, db.ForeignKey("pacientes.id"), nullable=False)
+    fisioterapeuta_id = db.Column(
+        db.Integer, db.ForeignKey("usuarios.id"), nullable=False
+    )
+    regiao = db.Column(db.String(30), nullable=True)
+    modalidade = db.Column(db.String(20), nullable=False, default="INDIVIDUAL")
+    data_avaliacao = db.Column(db.Date, nullable=False)
+    total_sessoes = db.Column(db.Integer, nullable=False, default=10)
+    status = db.Column(db.String(20), nullable=False, default="ATIVO")
+    data_alta = db.Column(db.Date, nullable=True)
+    observacoes = db.Column(db.Text, nullable=True)
+    criado_em = db.Column(
+        db.DateTime(timezone=True), nullable=False, server_default=db.func.now()
+    )
+
+    paciente = db.relationship("Patient", backref="ciclos")
+    fisioterapeuta = db.relationship("User", backref="ciclos")
+
+    def acessivel_por(self, usuario) -> bool:
+        """Um ADMIN vê qualquer ciclo; um fisioterapeuta, só os seus."""
         if usuario.perfil == ADMIN_PROFILE:
             return True
         return self.fisioterapeuta_id == usuario.id
