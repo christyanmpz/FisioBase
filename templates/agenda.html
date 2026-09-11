@@ -23,6 +23,8 @@
                style="padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--white);">
         <button class="button button--ghost button--small" type="submit">Ir</button>
       </form>
+     
+                    
     </nav>
 
     <section class="panel">
@@ -71,7 +73,10 @@
               <td class="muted-cell">{{ item.fisioterapeuta.nome }}</td>
               <td>
                 <div class="table-actions">
-                  <form method="post" action="{{ url_for('alterar_status_agendamento', agendamento_id=item.id) }}">
+                <form method="post" action="{{ url_for('alterar_status_agendamento', agendamento_id=item.id) }}">
+                          {% if item.paciente_id %}
+                  <a href="{{ url_for('registrar_evolucao', agendamento_id=item.id) }}">Evolução</a>
+                            {% endif %}
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <label class="sr-only" for="status-{{ item.id }}">Status do agendamento</label>
                     <select id="status-{{ item.id }}" name="status">

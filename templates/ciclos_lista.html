@@ -30,6 +30,7 @@
               <th scope="col">Avaliação</th>
               <th scope="col">Região</th>
               <th scope="col">Modalidade</th>
+              <th scope="col">Responsável</th>
               <th scope="col">Sessões</th>
               <th scope="col">Status</th>
               <th scope="col">Ações</th>
@@ -41,6 +42,28 @@
               <td><strong>{{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}</strong></td>
               <td>{{ ciclo.regiao|capitalize }}</td>
               <td class="muted-cell">{{ ciclo.modalidade|capitalize }}</td>
+              <td>
+                {% if current_user.perfil == "ADMIN" and ciclo.status == "ATIVO" %}
+                <form method="post" action="{{ url_for('trocar_responsavel_ciclo', ciclo_id=ciclo.id) }}"
+                      style="display:flex; gap:6px; align-items:center;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <label class="sr-only" for="resp-{{ ciclo.id }}">Fisioterapeuta responsável</label>
+                  <select id="resp-{{ ciclo.id }}" name="fisioterapeuta_id"
+                          style="padding:7px 9px; border:1px solid #d9e3e2; border-radius:7px; font-size:0.72rem;">
+                    {% for profissional in fisioterapeutas %}
+                    <option value="{{ profissional.id }}"
+                            {% if ciclo.fisioterapeuta_id == profissional.id %}selected{% endif %}>
+                      {{ profissional.nome }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                  <button class="button button--ghost button--small" type="submit">Trocar</button>
+                </form>
+                {% else %}
+                <strong>{{ ciclo.fisioterapeuta.nome }}</strong>
+                {% endif %}
+              </td>
+
               <td class="muted-cell">{{ ciclo.total_sessoes }}</td>
               <td>
                 {% if ciclo.status == "ATIVO" %}

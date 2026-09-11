@@ -50,7 +50,7 @@
               <td>
                 <div class="table-person">
                   <span class="avatar avatar--table avatar--green" aria-hidden="true">{{ paciente.nome[0] }}</span>
-                  <strong>{{ paciente.nome }}</strong>
+                <a href="{{ url_for('ficha_paciente', paciente_id=paciente.id) }}"><strong>{{ paciente.nome }}</strong></a>
                 </div>
               </td>
               <td class="muted-cell">{{ paciente.cpf or "—" }}</td>

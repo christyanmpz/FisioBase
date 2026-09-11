@@ -131,3 +131,37 @@ class Appointment(db.Model):
         if usuario.perfil == ADMIN_PROFILE:
             return True
         return self.fisioterapeuta_id == usuario.id
+
+
+class Evolution(db.Model):
+    __tablename__ = "evolucoes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    ciclo_id = db.Column(
+        db.Integer, db.ForeignKey("ciclos_tratamento.id"), nullable=True
+    )
+    paciente_id = db.Column(db.Integer, db.ForeignKey("pacientes.id"), nullable=False)
+    agendamento_id = db.Column(
+        db.Integer, db.ForeignKey("agendamentos.id"), nullable=True
+    )
+    fisioterapeuta_id = db.Column(
+        db.Integer, db.ForeignKey("usuarios.id"), nullable=False
+    )
+    data = db.Column(db.Date, nullable=False)
+    descricao = db.Column(db.Text, nullable=True)
+    evolucao = db.Column(db.Text, nullable=True)
+    observacoes = db.Column(db.Text, nullable=True)
+    criado_em = db.Column(
+        db.DateTime(timezone=True), nullable=False, server_default=db.func.now()
+    )
+
+    paciente = db.relationship("Patient", backref="evolucoes")
+    ciclo = db.relationship("TreatmentCycle", backref="evolucoes")
+    agendamento = db.relationship("Appointment", backref="evolucao")
+    fisioterapeuta = db.relationship("User", backref="evolucoes")
+
+    def editavel_por(self, usuario) -> bool:
+        """Quem escreveu pode corrigir; o admin também."""
+        if usuario.perfil == ADMIN_PROFILE:
+            return True
+        return self.fisioterapeuta_id == usuario.id

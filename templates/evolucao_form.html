@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Evolução clínica · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar">
+      <div>
+        <p class="breadcrumb">
+          {{ agendamento.paciente.nome }} <span>/</span>
+          {{ agendamento.data.strftime("%d/%m/%Y") }} às {{ agendamento.hora.strftime("%H:%M") }}
+        </p>
+        <h1>{{ "Editar evolução" if evolucao else "Registrar evolução" }}</h1>
+      </div>
+      <a class="button button--ghost" href="{{ url_for('ficha_paciente', paciente_id=agendamento.paciente_id) }}">Voltar à ficha</a>
+    </header>
+
+    <form method="post" class="form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="field">
+        <label for="descricao">O que foi realizado</label>
+        <textarea id="descricao" name="descricao" rows="5" required autofocus>{{ evolucao.descricao if evolucao and evolucao.descricao else "" }}</textarea>
+        <small>Condutas, exercícios e técnicas aplicadas nesta sessão.</small>
+      </div>
+
+      <div class="field">
+        <label for="evolucao">Resposta do paciente</label>
+        <textarea id="evolucao" name="evolucao" rows="5">{{ evolucao.evolucao if evolucao and evolucao.evolucao else "" }}</textarea>
+        <small>Como o paciente respondeu: dor, amplitude, força, queixas.</small>
+      </div>
+
+      <div class="field">
+        <label for="observacoes">Observações</label>
+        <textarea id="observacoes" name="observacoes" rows="3">{{ evolucao.observacoes if evolucao and evolucao.observacoes else "" }}</textarea>
+        <small>Intercorrências, orientações domiciliares, próximos passos.</small>
+      </div>
+
+      {% if evolucao %}
+      <p class="panel-note">
+        Registrado por {{ evolucao.fisioterapeuta.nome }} em
+        {{ evolucao.criado_em.strftime("%d/%m/%Y às %H:%M") if evolucao.criado_em else "—" }}.
+      </p>
+      {% else %}
+      <p class="panel-note">
+        Ao salvar, o atendimento será marcado como realizado automaticamente.
+      </p>
+      {% endif %}
+
+      <div class="form-actions">
+        <button class="button button--primary" type="submit">
+          {{ "Salvar alterações" if evolucao else "Registrar evolução" }}
+        </button>
+        <a class="button button--ghost" href="{{ url_for('ficha_paciente', paciente_id=agendamento.paciente_id) }}">Cancelar</a>
+      </div>
+    </form>
+{% endblock %}

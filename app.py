@@ -35,6 +35,7 @@ from models import (
     ADMIN_PROFILE,
     PHYSIOTHERAPIST_PROFILE,
     Appointment,
+    Evolution,
     Patient,
     TreatmentCycle,
     User,
@@ -360,6 +361,48 @@ def register_routes(app: Flask) -> None:
         pacientes = consulta.order_by(Patient.nome).all()
         return render_template("pacientes_lista.html", pacientes=pacientes, busca=busca)
 
+    @app.get("/pacientes/<int:paciente_id>")
+    @login_required
+    def ficha_paciente(paciente_id: int):
+        paciente = db.session.get(Patient, paciente_id)
+        if paciente is None:
+            abort(404)
+        if not paciente.acessivel_por(current_user):
+            abort(403)
+
+        ciclos = (
+            TreatmentCycle.query.filter_by(paciente_id=paciente.id)
+            .order_by(TreatmentCycle.data_avaliacao.desc())
+            .all()
+        )
+
+        atendimentos = (
+            Appointment.query.filter_by(paciente_id=paciente.id)
+            .order_by(Appointment.data.desc(), Appointment.hora.desc())
+            .all()
+        )
+
+        def contar(status):
+            return sum(1 for item in atendimentos if item.status == status)
+
+        realizados = contar("REALIZADO")
+        faltas = contar("FALTOU")
+        cancelados = contar("CANCELADO")
+        previstos = len(atendimentos) - cancelados
+        taxa_falta = round(faltas * 100 / previstos, 1) if previstos else 0
+
+        return render_template(
+            "paciente_ficha.html",
+            paciente=paciente,
+            ciclos=ciclos,
+            atendimentos=atendimentos,
+            total=len(atendimentos),
+            realizados=realizados,
+            faltas=faltas,
+            cancelados=cancelados,
+            taxa_falta=taxa_falta,
+        )
+
     @app.route("/pacientes/novo", methods=["GET", "POST"])
     @login_required
     def novo_paciente():
@@ -512,7 +555,12 @@ def register_routes(app: Flask) -> None:
             .order_by(TreatmentCycle.data_avaliacao.desc())
             .all()
         )
-        return render_template("ciclos_lista.html", paciente=paciente, ciclos=ciclos)
+        return render_template(
+            "ciclos_lista.html",
+            paciente=paciente,
+            ciclos=ciclos,
+            fisioterapeutas=_fisioterapeutas_ativos(),
+        )
 
     @app.route("/pacientes/<int:paciente_id>/ciclos/novo", methods=["GET", "POST"])
     @login_required
@@ -610,6 +658,26 @@ def register_routes(app: Flask) -> None:
         ciclo.data_alta = date.today()
         db.session.commit()
         flash("Ciclo encerrado.", "success")
+        return redirect(url_for("listar_ciclos", paciente_id=ciclo.paciente_id))
+
+    @app.post("/ciclos/<int:ciclo_id>/responsavel")
+    @role_required(ADMIN_PROFILE)
+    def trocar_responsavel_ciclo(ciclo_id: int):
+        """Apenas o admin redireciona um tratamento para outro profissional."""
+        ciclo = db.session.get(TreatmentCycle, ciclo_id)
+        if ciclo is None:
+            abort(404)
+
+        escolhido = request.form.get("fisioterapeuta_id", "").strip()
+        responsavel = db.session.get(User, int(escolhido)) if escolhido else None
+
+        if responsavel is None or not responsavel.ativo:
+            flash("Selecione um fisioterapeuta responsável válido.", "error")
+            return redirect(url_for("listar_ciclos", paciente_id=ciclo.paciente_id))
+
+        ciclo.fisioterapeuta_id = responsavel.id
+        db.session.commit()
+        flash(f"{responsavel.nome} agora conduz este tratamento.", "success")
         return redirect(url_for("listar_ciclos", paciente_id=ciclo.paciente_id))
 
     # ------------------------------------------------------------------
@@ -853,6 +921,67 @@ def register_routes(app: Flask) -> None:
             por_horario=dict(sorted(por_horario.items())),
             por_profissional=por_profissional,
         )
+
+    # ------------------------------------------------------------------
+    # Evolução clínica
+    # ------------------------------------------------------------------
+
+    @app.route("/agendamentos/<int:agendamento_id>/evolucao", methods=["GET", "POST"])
+    @login_required
+    def registrar_evolucao(agendamento_id: int):
+        agendamento = db.session.get(Appointment, agendamento_id)
+        if agendamento is None:
+            abort(404)
+        if not agendamento.acessivel_por(current_user):
+            abort(403)
+
+        evolucao = db.session.scalar(
+            db.select(Evolution).where(Evolution.agendamento_id == agendamento.id)
+        )
+
+        if evolucao is not None and not evolucao.editavel_por(current_user):
+            abort(403)
+
+        def form(codigo=200):
+            return (
+                render_template(
+                    "evolucao_form.html",
+                    agendamento=agendamento,
+                    evolucao=evolucao,
+                ),
+                codigo,
+            )
+
+        if request.method == "POST":
+            descricao = request.form.get("descricao", "").strip()
+            if not descricao:
+                flash("Descreva o que foi realizado na sessão.", "error")
+                return form(400)
+
+            if evolucao is None:
+                evolucao = Evolution(
+                    paciente_id=agendamento.paciente_id,
+                    ciclo_id=agendamento.ciclo_id,
+                    agendamento_id=agendamento.id,
+                    fisioterapeuta_id=current_user.id,
+                    data=agendamento.data,
+                )
+                db.session.add(evolucao)
+
+            evolucao.descricao = descricao
+            evolucao.evolucao = request.form.get("evolucao", "").strip() or None
+            evolucao.observacoes = request.form.get("observacoes", "").strip() or None
+
+            if agendamento.status in ("AGENDADO", "CONFIRMADO"):
+                agendamento.status = "REALIZADO"
+
+            db.session.commit()
+            flash("Evolução registrada.", "success")
+            return redirect(
+                url_for("ficha_paciente", paciente_id=agendamento.paciente_id)
+            )
+
+        return form()
 
 
 def register_error_handlers(app: Flask) -> None:

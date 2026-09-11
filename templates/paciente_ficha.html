@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}{{ paciente.nome }} · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar">
+      <div>
+        <p class="breadcrumb">Pacientes <span>/</span> Ficha</p>
+        <h1>{{ paciente.nome }}</h1>
+      </div>
+      <a class="button button--ghost" href="{{ url_for('editar_paciente', paciente_id=paciente.id) }}">Editar cadastro</a>
+    </header>
+
+    <section class="stats-grid" aria-label="Resumo dos atendimentos">
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Comparecimentos</span>
+          <span class="stat-icon stat-icon--green" aria-hidden="true">✓</span>
+        </div>
+        <strong class="stat-value">{{ realizados }}</strong>
+        <span class="stat-caption">de {{ total }} atendimentos</span>
+      </article>
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Faltas</span>
+          <span class="stat-icon stat-icon--yellow" aria-hidden="true">!</span>
+        </div>
+        <strong class="stat-value">{{ faltas }}</strong>
+        <span class="stat-caption">taxa de {{ taxa_falta }}%</span>
+      </article>
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Cancelamentos</span>
+          <span class="stat-icon stat-icon--blue" aria-hidden="true">◎</span>
+        </div>
+        <strong class="stat-value">{{ cancelados }}</strong>
+        <span class="stat-caption">agendamentos desmarcados</span>
+      </article>
+    </section>
+
+    <section class="content-grid">
+      <article class="panel panel--wide">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow eyebrow--muted">Histórico</p>
+            <h2>Atendimentos</h2>
+          </div>
+          <span class="panel-count">{{ total }} registros</span>
+        </div>
+
+        {% if atendimentos %}
+        <div class="table-wrap">
+          <table>
+            <caption class="sr-only">Histórico de atendimentos do paciente</caption>
+            <thead>
+              <tr>
+                <th scope="col">Data</th>
+                <th scope="col">Hora</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Sessão</th>
+                <th scope="col">Profissional</th>
+                <th scope="col">Situação</th>
+                <th scope="col">Evolução</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in atendimentos %}
+              <tr>
+                <td><strong>{{ item.data.strftime("%d/%m/%Y") }}</strong></td>
+                <td class="muted-cell">{{ item.hora.strftime("%H:%M") }}</td>
+                <td>{{ "Avaliação" if item.tipo == "AVALIACAO" else "Sessão" }}</td>
+                <td class="muted-cell">
+                  {% if item.numero_sessao and item.ciclo %}
+                    {{ item.numero_sessao }} de {{ item.ciclo.total_sessoes }}
+                  {% else %}—{% endif %}
+                </td>
+                <td class="muted-cell">{{ item.fisioterapeuta.nome }}</td>
+                <td>
+                  {% set rotulos = {
+                    "AGENDADO": "Agendado", "CONFIRMADO": "Confirmado",
+                    "REALIZADO": "Compareceu", "FALTOU": "Faltou",
+                    "CANCELADO": "Cancelado"
+                  } %}
+                  <span class="role-badge role-badge--{{ 'fisioterapeuta' if item.status == 'REALIZADO' else 'admin' }}">
+                    {{ rotulos[item.status] }}
+                  </span>
+                </td>
+
+                <td>
+                  <a href="{{ url_for('registrar_evolucao', agendamento_id=item.id) }}">
+                    {{ "Ver" if item.evolucao else "Registrar" }}
+                  </a>
+                </td>
+
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <div class="empty-state__icon" aria-hidden="true">◷</div>
+          <h3>Nenhum atendimento registrado</h3>
+          <p>O histórico aparece aqui conforme os agendamentos acontecem.</p>
+        </div>
+        {% endif %}
+      </article>
+
+      <aside class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow eyebrow--muted">Cadastro</p>
+            <h2>Dados do paciente</h2>
+          </div>
+        </div>
+
+        <div class="roadmap">
+          <div class="roadmap-item">
+            <div><strong>CPF</strong><span>{{ paciente.cpf or "Não informado" }}</span></div>
+          </div>
+          <div class="roadmap-item">
+            <div><strong>Nascimento</strong>
+              <span>{{ paciente.data_nascimento.strftime("%d/%m/%Y") if paciente.data_nascimento else "Não informado" }}</span>
+            </div>
+          </div>
+          <div class="roadmap-item">
+            <div><strong>Telefone</strong><span>{{ paciente.telefone or "Não informado" }}</span></div>
+          </div>
+          <div class="roadmap-item">
+            <div><strong>Responsável</strong>
+              <span>{{ paciente.fisioterapeuta.nome if paciente.fisioterapeuta else "Não definido" }}</span>
+            </div>
+          </div>
+          <div class="roadmap-item">
+            <div><strong>CID</strong><span>{{ paciente.cid or "Não informado" }}</span></div>
+          </div>
+        </div>
+
+        {% if paciente.diagnostico %}
+        <div class="panel-note">{{ paciente.diagnostico }}</div>
+        {% endif %}
+      </aside>
+    </section>
+
+    <section class="panel" style="margin-top:17px;">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Tratamentos</p>
+          <h2>Ciclos</h2>
+        </div>
+        <a class="button button--primary button--small" href="{{ url_for('listar_ciclos', paciente_id=paciente.id) }}">Gerenciar ciclos</a>
+      </div>
+
+      {% if ciclos %}
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Ciclos de tratamento do paciente</caption>
+          <thead>
+            <tr>
+              <th scope="col">Avaliação</th>
+              <th scope="col">Região</th>
+              <th scope="col">Responsável</th>
+              <th scope="col">Sessões</th>
+              <th scope="col">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ciclo in ciclos %}
+            <tr>
+              <td><strong>{{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}</strong></td>
+              <td>{{ ciclo.regiao|capitalize }}</td>
+              <td class="muted-cell">{{ ciclo.fisioterapeuta.nome }}</td>
+              <td class="muted-cell">{{ ciclo.total_sessoes }}</td>
+              <td>
+                {% if ciclo.status == "ATIVO" %}
+                <span class="role-badge role-badge--fisioterapeuta">Em tratamento</span>
+                {% else %}
+                <span class="role-badge role-badge--admin">
+                  {{ {"CONCLUIDO": "Concluído", "ALTA": "Alta", "ABANDONO": "Abandono"}[ciclo.status] }}
+                </span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="panel-note">Nenhum ciclo de tratamento registrado.</p>
+      {% endif %}
+    </section>
+{% endblock %}
