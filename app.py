@@ -344,11 +344,21 @@ def register_routes(app: Flask) -> None:
     @app.get("/pacientes")
     @login_required
     def listar_pacientes():
+        busca = request.args.get("q", "").strip()
+
         consulta = Patient.query
         if current_user.perfil != ADMIN_PROFILE:
             consulta = consulta.filter_by(fisioterapeuta_id=current_user.id)
+
+        if busca:
+            somente_digitos = "".join(c for c in busca if c.isdigit())
+            filtros = [Patient.nome.ilike(f"%{busca}%")]
+            if somente_digitos:
+                filtros.append(Patient.cpf.ilike(f"%{somente_digitos}%"))
+            consulta = consulta.filter(db.or_(*filtros))
+
         pacientes = consulta.order_by(Patient.nome).all()
-        return render_template("pacientes_lista.html", pacientes=pacientes)
+        return render_template("pacientes_lista.html", pacientes=pacientes, busca=busca)
 
     @app.route("/pacientes/novo", methods=["GET", "POST"])
     @login_required
@@ -513,17 +523,27 @@ def register_routes(app: Flask) -> None:
         if not paciente.acessivel_por(current_user):
             abort(403)
 
+        def form(codigo=200):
+            return (
+                render_template(
+                    "ciclo_form.html",
+                    paciente=paciente,
+                    fisioterapeutas=_fisioterapeutas_ativos(),
+                ),
+                codigo,
+            )
+
         if request.method == "POST":
             regiao = request.form.get("regiao", "").strip().upper()
             modalidade = request.form.get("modalidade", "INDIVIDUAL").strip().upper()
 
             if regiao not in REGIOES:
                 flash("Selecione uma região válida.", "error")
-                return render_template("ciclo_form.html", paciente=paciente), 400
+                return form(400)
 
             if modalidade not in MODALIDADES:
                 flash("Modalidade inválida.", "error")
-                return render_template("ciclo_form.html", paciente=paciente), 400
+                return form(400)
 
             try:
                 data_avaliacao = date.fromisoformat(
@@ -531,21 +551,33 @@ def register_routes(app: Flask) -> None:
                 )
             except ValueError:
                 flash("Informe uma data de avaliação válida.", "error")
-                return render_template("ciclo_form.html", paciente=paciente), 400
+                return form(400)
 
             try:
                 sessoes = int(request.form.get("total_sessoes", "10").strip())
             except ValueError:
                 flash("Número de sessões inválido.", "error")
-                return render_template("ciclo_form.html", paciente=paciente), 400
+                return form(400)
 
             if not 1 <= sessoes <= 30:
                 flash("O número de sessões deve estar entre 1 e 30.", "error")
-                return render_template("ciclo_form.html", paciente=paciente), 400
+                return form(400)
+
+            responsavel_id = paciente.fisioterapeuta_id or current_user.id
+            if current_user.perfil == ADMIN_PROFILE:
+                escolhido = request.form.get("fisioterapeuta_id", "").strip()
+                if escolhido:
+                    responsavel = db.session.get(User, int(escolhido))
+                    if responsavel is None or not responsavel.ativo:
+                        flash(
+                            "Selecione um fisioterapeuta responsável válido.", "error"
+                        )
+                        return form(400)
+                    responsavel_id = responsavel.id
 
             ciclo = TreatmentCycle(
                 paciente_id=paciente.id,
-                fisioterapeuta_id=paciente.fisioterapeuta_id or current_user.id,
+                fisioterapeuta_id=responsavel_id,
                 regiao=regiao,
                 modalidade=modalidade,
                 data_avaliacao=data_avaliacao,
@@ -558,7 +590,7 @@ def register_routes(app: Flask) -> None:
             flash("Ciclo de tratamento aberto.", "success")
             return redirect(url_for("listar_ciclos", paciente_id=paciente.id))
 
-        return render_template("ciclo_form.html", paciente=paciente)
+        return form()
 
     @app.post("/ciclos/<int:ciclo_id>/encerrar")
     @login_required
