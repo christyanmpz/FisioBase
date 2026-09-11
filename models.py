@@ -1,5 +1,7 @@
 """Modelos persistidos do sistema."""
 
+from datetime import date
+
 from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -8,6 +10,23 @@ db = SQLAlchemy()
 
 ADMIN_PROFILE = "ADMIN"
 PHYSIOTHERAPIST_PROFILE = "FISIOTERAPEUTA"
+
+# Espelham as restrições chk_grupo_regiao e chk_grupo_cap do banco.
+GROUP_REGIONS = ("OMBRO", "JOELHO", "COLUNA", "OUTRO")
+GROUP_CAPACITY_MIN = 1
+GROUP_CAPACITY_MAX = 20
+GROUP_CAPACITY_DEFAULT = 14
+
+# Índice = valor de grupos.dia_semana (convenção do Python: 0 = segunda).
+WEEKDAY_NAMES = (
+    "Segunda-feira",
+    "Terça-feira",
+    "Quarta-feira",
+    "Quinta-feira",
+    "Sexta-feira",
+    "Sábado",
+    "Domingo",
+)
 
 
 class User(UserMixin, db.Model):
@@ -99,13 +118,121 @@ class TreatmentCycle(db.Model):
         return self.fisioterapeuta_id == usuario.id
 
 
+class Group(db.Model):
+    """Grupo terapêutico com horário fixo semanal.
+
+    dia_semana segue date.weekday() do Python: 0 = segunda ... 6 = domingo.
+    Atenção: no PostgreSQL, extract(dow ...) usa 0 = domingo. Converter
+    se algum dia esta coluna for comparada com dow em SQL.
+
+    As CheckConstraints abaixo já existem no Supabase com os mesmos nomes.
+    Aqui elas só servem para o SQLite dos testes rejeitar os mesmos valores
+    que o banco de produção rejeita.
+    """
+
+    __tablename__ = "grupos"
+    __table_args__ = (
+        db.CheckConstraint(
+            "capacidade_max >= 1 AND capacidade_max <= 20", name="chk_grupo_cap"
+        ),
+        db.CheckConstraint("dia_semana >= 0 AND dia_semana <= 6", name="chk_grupo_dia"),
+        db.CheckConstraint(
+            "regiao IN ('OMBRO', 'JOELHO', 'COLUNA', 'OUTRO')",
+            name="chk_grupo_regiao",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(100), nullable=False)
+    regiao = db.Column(db.String(30), nullable=False)
+    fisioterapeuta_id = db.Column(
+        db.Integer, db.ForeignKey("usuarios.id"), nullable=False
+    )
+    dia_semana = db.Column(db.SmallInteger, nullable=True)
+    hora = db.Column(db.Time, nullable=True)
+    capacidade_max = db.Column(
+        db.Integer, nullable=False, default=GROUP_CAPACITY_DEFAULT
+    )
+    ativo = db.Column(db.Boolean, nullable=False, default=True)
+    criado_em = db.Column(
+        db.DateTime(timezone=True), nullable=False, server_default=db.func.now()
+    )
+
+    fisioterapeuta = db.relationship("User", backref="grupos")
+    participacoes = db.relationship(
+        "GroupPatient", back_populates="grupo", order_by="GroupPatient.id"
+    )
+
+    def acessivel_por(self, usuario) -> bool:
+        """Um ADMIN vê qualquer grupo; um fisioterapeuta, só os que conduz."""
+        if usuario.perfil == ADMIN_PROFILE:
+            return True
+        return self.fisioterapeuta_id == usuario.id
+
+    @property
+    def participacoes_ativas(self) -> list:
+        """Participações sem data de saída, ou seja, quem está no grupo hoje."""
+        return [p for p in self.participacoes if p.data_saida is None]
+
+    @property
+    def vagas_disponiveis(self) -> int:
+        return max(self.capacidade_max - len(self.participacoes_ativas), 0)
+
+    @property
+    def lotado(self) -> bool:
+        return self.vagas_disponiveis == 0
+
+    @property
+    def dia_semana_nome(self) -> str:
+        if self.dia_semana is None:
+            return "—"
+        return WEEKDAY_NAMES[self.dia_semana]
+
+    def participacao_ativa_de(self, paciente_id: int):
+        """Devolve a participação ativa do paciente neste grupo, ou None."""
+        for participacao in self.participacoes_ativas:
+            if participacao.paciente_id == paciente_id:
+                return participacao
+        return None
+
+
+class GroupPatient(db.Model):
+    """Passagem de um paciente por um grupo.
+
+    Sair do grupo preenche data_saida; a linha nunca é apagada, para não
+    perder o histórico de presença. Se o paciente voltar, entra uma
+    linha nova.
+    """
+
+    __tablename__ = "grupo_pacientes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    grupo_id = db.Column(
+        db.Integer, db.ForeignKey("grupos.id", ondelete="CASCADE"), nullable=False
+    )
+    paciente_id = db.Column(db.Integer, db.ForeignKey("pacientes.id"), nullable=False)
+    ciclo_id = db.Column(
+        db.Integer, db.ForeignKey("ciclos_tratamento.id"), nullable=True
+    )
+    data_entrada = db.Column(db.Date, nullable=False, default=date.today)
+    data_saida = db.Column(db.Date, nullable=True)
+
+    grupo = db.relationship("Group", back_populates="participacoes")
+    paciente = db.relationship("Patient", backref="participacoes_grupo")
+    ciclo = db.relationship("TreatmentCycle", backref="participacoes_grupo")
+
+    @property
+    def ativa(self) -> bool:
+        return self.data_saida is None
+
+
 class Appointment(db.Model):
     __tablename__ = "agendamentos"
 
     id = db.Column(db.Integer, primary_key=True)
     tipo = db.Column(db.String(20), nullable=False)
     paciente_id = db.Column(db.Integer, db.ForeignKey("pacientes.id"), nullable=True)
-    grupo_id = db.Column(db.Integer, nullable=True)
+    grupo_id = db.Column(db.Integer, db.ForeignKey("grupos.id"), nullable=True)
     ciclo_id = db.Column(
         db.Integer, db.ForeignKey("ciclos_tratamento.id"), nullable=True
     )
@@ -123,6 +250,7 @@ class Appointment(db.Model):
     )
 
     paciente = db.relationship("Patient", backref="agendamentos")
+    grupo = db.relationship("Group", backref="agendamentos")
     ciclo = db.relationship("TreatmentCycle", backref="agendamentos")
     fisioterapeuta = db.relationship("User", backref="agendamentos")
 
