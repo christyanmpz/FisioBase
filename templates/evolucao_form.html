@@ -10,11 +10,45 @@
           {{ agendamento.paciente.nome }} <span>/</span>
           {{ agendamento.data.strftime("%d/%m/%Y") }} às {{ agendamento.hora.strftime("%H:%M") }}
         </p>
-        <h1>{{ "Editar evolução" if evolucao else "Registrar evolução" }}</h1>
+        <h1>
+          {% if somente_leitura %}Evolução clínica
+          {% elif evolucao %}Editar evolução
+          {% else %}Registrar evolução{% endif %}
+        </h1>
       </div>
       <a class="button button--ghost" href="{{ url_for('ficha_paciente', paciente_id=agendamento.paciente_id) }}">Voltar à ficha</a>
     </header>
 
+    {% if somente_leitura %}
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Somente leitura</p>
+          <h2>Registro da sessão</h2>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>O que foi realizado</label>
+        <div class="panel-note" style="white-space: pre-line;">{{ evolucao.descricao or "—" }}</div>
+      </div>
+
+      <div class="field">
+        <label>Resposta do paciente</label>
+        <div class="panel-note" style="white-space: pre-line;">{{ evolucao.evolucao or "—" }}</div>
+      </div>
+
+      <div class="field">
+        <label>Observações</label>
+        <div class="panel-note" style="white-space: pre-line;">{{ evolucao.observacoes or "—" }}</div>
+      </div>
+
+      <p class="panel-note">
+        Registrado por {{ evolucao.fisioterapeuta.nome }} em
+        {{ evolucao.criado_em.strftime("%d/%m/%Y às %H:%M") if evolucao.criado_em else "—" }}.
+      </p>
+    </section>
+    {% else %}
     <form method="post" class="form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -41,7 +75,7 @@
         Registrado por {{ evolucao.fisioterapeuta.nome }} em
         {{ evolucao.criado_em.strftime("%d/%m/%Y às %H:%M") if evolucao.criado_em else "—" }}.
       </p>
-      {% else %}
+      {% elif agendamento.status != "REALIZADO" %}
       <p class="panel-note">
         Ao salvar, o atendimento será marcado como realizado automaticamente.
       </p>
@@ -54,4 +88,5 @@
         <a class="button button--ghost" href="{{ url_for('ficha_paciente', paciente_id=agendamento.paciente_id) }}">Cancelar</a>
       </div>
     </form>
+    {% endif %}
 {% endblock %}

@@ -88,9 +88,14 @@
                 </td>
 
                 <td>
+                  {% set acao = acoes_evolucao[item.id] %}
+                  {% if acao %}
                   <a href="{{ url_for('registrar_evolucao', agendamento_id=item.id) }}">
-                    {{ "Ver" if item.evolucao else "Registrar" }}
+                    {{ {"registrar": "Registrar", "editar": "Editar", "ver": "Ver"}[acao] }}
                   </a>
+                  {% else %}
+                  <span class="muted-cell">—</span>
+                  {% endif %}
                 </td>
 
               </tr>

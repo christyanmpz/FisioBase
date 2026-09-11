@@ -289,7 +289,12 @@ class Evolution(db.Model):
     fisioterapeuta = db.relationship("User", backref="evolucoes")
 
     def editavel_por(self, usuario) -> bool:
-        """Quem escreveu pode corrigir; o admin também."""
+        """O admin, quem escreveu e o fisioterapeuta da sessão podem corrigir."""
         if usuario.perfil == ADMIN_PROFILE:
             return True
-        return self.fisioterapeuta_id == usuario.id
+        if self.fisioterapeuta_id == usuario.id:
+            return True
+        return (
+            self.agendamento is not None
+            and self.agendamento.fisioterapeuta_id == usuario.id
+        )

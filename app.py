@@ -2,7 +2,8 @@
 
 from functools import wraps
 import os
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 try:
     from dotenv import load_dotenv
@@ -55,6 +56,11 @@ STATUS_ENCERRAMENTO = ("CONCLUIDO", "ALTA", "ABANDONO")
 LIMITE_POR_HORARIO = 2
 STATUS_AGENDAMENTO = ("AGENDADO", "CONFIRMADO", "REALIZADO", "CANCELADO", "FALTOU")
 HORARIOS = [f"{h:02d}:{m:02d}" for h in range(8, 17) for m in (0, 30)]
+# Status em que a sessão aceita evolução clínica (e só a partir do dia dela).
+STATUS_COM_EVOLUCAO = ("AGENDADO", "CONFIRMADO", "REALIZADO")
+# Status que registram comparecimento; só valem a partir do dia da sessão.
+STATUS_DE_COMPARECIMENTO = ("REALIZADO", "FALTOU")
+FUSO_CLINICA = ZoneInfo("America/Sao_Paulo")
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -153,6 +159,16 @@ def cpf_valido(cpf: str) -> bool:
             return False
 
     return True
+
+
+def hoje(agora: datetime | None = None) -> date:
+    """Data de hoje no fuso da clínica.
+
+    O servidor da Vercel roda em UTC: depois das 21h de Brasília,
+    date.today() já devolveria o dia seguinte.
+    """
+    agora = agora or datetime.now(FUSO_CLINICA)
+    return agora.astimezone(FUSO_CLINICA).date()
 
 
 def register_routes(app: Flask) -> None:
@@ -391,11 +407,19 @@ def register_routes(app: Flask) -> None:
         previstos = len(atendimentos) - cancelados
         taxa_falta = round(faltas * 100 / previstos, 1) if previstos else 0
 
+        acoes_evolucao = {
+            item.id: _acao_evolucao(
+                item, item.evolucao[0] if item.evolucao else None, current_user
+            )
+            for item in atendimentos
+        }
+
         return render_template(
             "paciente_ficha.html",
             paciente=paciente,
             ciclos=ciclos,
             atendimentos=atendimentos,
+            acoes_evolucao=acoes_evolucao,
             total=len(atendimentos),
             realizados=realizados,
             faltas=faltas,
@@ -655,7 +679,7 @@ def register_routes(app: Flask) -> None:
             return redirect(url_for("listar_ciclos", paciente_id=ciclo.paciente_id))
 
         ciclo.status = novo_status
-        ciclo.data_alta = date.today()
+        ciclo.data_alta = hoje()
         db.session.commit()
         flash("Ciclo encerrado.", "success")
         return redirect(url_for("listar_ciclos", paciente_id=ciclo.paciente_id))
@@ -702,9 +726,9 @@ def register_routes(app: Flask) -> None:
     def agenda():
         dia = request.args.get("data", "").strip()
         try:
-            data_agenda = date.fromisoformat(dia) if dia else date.today()
+            data_agenda = date.fromisoformat(dia) if dia else hoje()
         except ValueError:
-            data_agenda = date.today()
+            data_agenda = hoje()
 
         consulta = Appointment.query.filter(Appointment.data == data_agenda)
         if current_user.perfil != ADMIN_PROFILE:
@@ -843,6 +867,13 @@ def register_routes(app: Flask) -> None:
             flash("Status inválido.", "error")
             return redirect(url_for("agenda", data=agendamento.data.isoformat()))
 
+        if novo_status in STATUS_DE_COMPARECIMENTO and agendamento.data > hoje():
+            flash(
+                "Presença e falta só podem ser registradas a partir do dia da sessão.",
+                "error",
+            )
+            return redirect(url_for("agenda", data=agendamento.data.isoformat()))
+
         agendamento.status = novo_status
         db.session.commit()
         flash("Status atualizado.", "success")
@@ -855,15 +886,15 @@ def register_routes(app: Flask) -> None:
     @app.get("/relatorios")
     @login_required
     def relatorios():
-        hoje = date.today()
+        dia_atual = hoje()
         try:
-            mes = int(request.args.get("mes", hoje.month))
-            ano = int(request.args.get("ano", hoje.year))
+            mes = int(request.args.get("mes", dia_atual.month))
+            ano = int(request.args.get("ano", dia_atual.year))
         except ValueError:
-            mes, ano = hoje.month, hoje.year
+            mes, ano = dia_atual.month, dia_atual.year
 
         if not 1 <= mes <= 12:
-            mes = hoje.month
+            mes = dia_atual.month
 
         inicio = date(ano, mes, 1)
         fim = date(ano + 1, 1, 1) if mes == 12 else date(ano, mes + 1, 1)
@@ -916,7 +947,7 @@ def register_routes(app: Flask) -> None:
             "relatorios.html",
             mes=mes,
             ano=ano,
-            anos=range(hoje.year - 2, hoje.year + 2),
+            anos=range(dia_atual.year - 2, dia_atual.year + 2),
             total=len(itens),
             realizados=realizados,
             faltas=faltas,
@@ -932,21 +963,70 @@ def register_routes(app: Flask) -> None:
     # Evolução clínica
     # ------------------------------------------------------------------
 
+    def _motivo_bloqueio_evolucao(agendamento):
+        """Explica por que a sessão não aceita evolução, ou devolve None."""
+        if agendamento.status == "FALTOU":
+            return "Não é possível registrar evolução em sessão marcada como falta."
+        if agendamento.status not in STATUS_COM_EVOLUCAO:
+            return "Não é possível registrar evolução em sessão cancelada."
+        if agendamento.data > hoje():
+            return (
+                "A evolução só pode ser registrada a partir do dia da sessão "
+                f"({agendamento.data.strftime('%d/%m/%Y')})."
+            )
+        return None
+
+    def _acao_evolucao(agendamento, evolucao, usuario):
+        """O que o usuário pode fazer com a evolução desta sessão.
+
+        Devolve "registrar", "editar", "ver" ou None (nenhuma ação).
+        - Quem acessa a sessão registra e edita, se a sessão aceitar evolução.
+        - Quem acessa só o paciente (por exemplo, o novo responsável) apenas lê.
+        """
+        acessa_sessao = agendamento.acessivel_por(usuario)
+        acessa_paciente = (
+            agendamento.paciente is not None
+            and agendamento.paciente.acessivel_por(usuario)
+        )
+        if not (acessa_sessao or acessa_paciente):
+            return None
+
+        sessao_aceita = _motivo_bloqueio_evolucao(agendamento) is None
+
+        if evolucao is None:
+            return "registrar" if acessa_sessao and sessao_aceita else None
+
+        if acessa_sessao and sessao_aceita and evolucao.editavel_por(usuario):
+            return "editar"
+        return "ver"
+
     @app.route("/agendamentos/<int:agendamento_id>/evolucao", methods=["GET", "POST"])
     @login_required
     def registrar_evolucao(agendamento_id: int):
         agendamento = db.session.get(Appointment, agendamento_id)
-        if agendamento is None:
+        # Sessão de grupo não tem paciente: a evolução de grupo será outra tela.
+        if agendamento is None or agendamento.paciente_id is None:
             abort(404)
-        if not agendamento.acessivel_por(current_user):
-            abort(403)
 
         evolucao = db.session.scalar(
             db.select(Evolution).where(Evolution.agendamento_id == agendamento.id)
         )
+        acao = _acao_evolucao(agendamento, evolucao, current_user)
 
-        if evolucao is not None and not evolucao.editavel_por(current_user):
+        def recusar():
+            """Quem cuida da sessão recebe o motivo; os demais, 403."""
+            motivo = _motivo_bloqueio_evolucao(agendamento)
+            if motivo and agendamento.acessivel_por(current_user):
+                flash(motivo, "error")
+                return redirect(
+                    url_for("ficha_paciente", paciente_id=agendamento.paciente_id)
+                )
             abort(403)
+
+        if acao is None:
+            return recusar()
+
+        somente_leitura = acao == "ver"
 
         def form(codigo=200):
             return (
@@ -954,11 +1034,15 @@ def register_routes(app: Flask) -> None:
                     "evolucao_form.html",
                     agendamento=agendamento,
                     evolucao=evolucao,
+                    somente_leitura=somente_leitura,
                 ),
                 codigo,
             )
 
         if request.method == "POST":
+            if somente_leitura:
+                return recusar()
+
             descricao = request.form.get("descricao", "").strip()
             if not descricao:
                 flash("Descreva o que foi realizado na sessão.", "error")
