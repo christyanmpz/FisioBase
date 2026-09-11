@@ -797,12 +797,18 @@ def register_routes(app: Flask) -> None:
 
             numero_sessao = None
             if tipo == "SESSAO":
-                sessoes = Appointment.query.filter(
+                realizadas = Appointment.query.filter(
                     Appointment.ciclo_id == ciclo.id,
                     Appointment.tipo == "SESSAO",
-                    Appointment.status != "CANCELADO",
+                    Appointment.status == "REALIZADO",
                 ).count()
-                numero_sessao = sessoes + 1
+                if realizadas >= ciclo.total_sessoes:
+                    flash(
+                        f"Este ciclo já tem {ciclo.total_sessoes} sessões realizadas.",
+                        "error",
+                    )
+                    return form(400)
+                numero_sessao = realizadas + 1
 
             agendamento = Appointment(
                 tipo=tipo,

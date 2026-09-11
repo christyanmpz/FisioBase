@@ -62,13 +62,20 @@ def test_agendar_avaliacao_grava_no_banco(client, app):
         assert item.data == date(2026, 10, 5)
 
 
-def test_sessao_recebe_numeracao_automatica(client, app):
+def test_sessao_so_avanca_apos_a_anterior_ser_realizada(client, app):
     id_fisio = id_do_usuario(app, "fisio@teste.com")
     id_paciente = criar_paciente(app, "Bruno Dias", id_fisio)
     id_ciclo = criar_ciclo(app, id_paciente, id_fisio)
 
     fazer_login(client, "fisio@teste.com", SENHA_FISIO)
     agendar(client, id_paciente, hora="09:00", tipo="SESSAO", ciclo_id=str(id_ciclo))
+
+    with app.app_context():
+        primeira = db.session.scalar(db.select(Appointment))
+        assert primeira.numero_sessao == 1
+        primeira.status = "REALIZADO"
+        db.session.commit()
+
     agendar(client, id_paciente, hora="10:00", tipo="SESSAO", ciclo_id=str(id_ciclo))
 
     with app.app_context():
@@ -79,6 +86,28 @@ def test_sessao_recebe_numeracao_automatica(client, app):
             ).all()
         ]
         assert numeros == [1, 2]
+
+
+def test_falta_nao_consome_sessao_do_ciclo(client, app):
+    id_fisio = id_do_usuario(app, "fisio@teste.com")
+    id_paciente = criar_paciente(app, "Bruno Dias", id_fisio)
+    id_ciclo = criar_ciclo(app, id_paciente, id_fisio)
+
+    fazer_login(client, "fisio@teste.com", SENHA_FISIO)
+    agendar(client, id_paciente, hora="09:00", tipo="SESSAO", ciclo_id=str(id_ciclo))
+
+    with app.app_context():
+        faltou = db.session.scalar(db.select(Appointment))
+        faltou.status = "FALTOU"
+        db.session.commit()
+
+    agendar(client, id_paciente, hora="10:00", tipo="SESSAO", ciclo_id=str(id_ciclo))
+
+    with app.app_context():
+        reposicao = db.session.scalar(
+            db.select(Appointment).order_by(Appointment.hora.desc())
+        )
+        assert reposicao.numero_sessao == 1
 
 
 def test_sessao_sem_ciclo_e_recusada(client, app):
