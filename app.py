@@ -303,25 +303,88 @@ def register_routes(app: Flask) -> None:
         flash("Você saiu do sistema com segurança.", "success")
         return redirect(url_for("login"))
 
+    def _resumo_do_mes(consulta_base, dia_atual):
+        """Conta realizados, faltas e taxa de presença no mês corrente."""
+        inicio = dia_atual.replace(day=1)
+        fim = (
+            date(inicio.year + 1, 1, 1)
+            if inicio.month == 12
+            else date(inicio.year, inicio.month + 1, 1)
+        )
+        itens = consulta_base.filter(
+            Appointment.data >= inicio, Appointment.data < fim
+        ).all()
+        realizados = sum(1 for i in itens if i.status == "REALIZADO")
+        faltas = sum(1 for i in itens if i.status == "FALTOU")
+        previstos = realizados + faltas
+        return {
+            "realizados": realizados,
+            "faltas": faltas,
+            "taxa_presenca": (round(realizados * 100 / previstos) if previstos else 0),
+        }
+
     @app.get("/dashboard/admin")
     @role_required(ADMIN_PROFILE)
     def admin_dashboard():
         profissionais = User.query.order_by(User.nome).all()
-        total_admins = User.query.filter_by(perfil=ADMIN_PROFILE).count()
-        total_fisioterapeutas = User.query.filter_by(
-            perfil=PHYSIOTHERAPIST_PROFILE
-        ).count()
+        dia_atual = hoje()
+
+        agenda_de_hoje = (
+            Appointment.query.filter(Appointment.data == dia_atual)
+            .order_by(Appointment.hora)
+            .all()
+        )
+
         return render_template(
             "dashboard_admin.html",
             profissionais=profissionais,
-            total_admins=total_admins,
-            total_fisioterapeutas=total_fisioterapeutas,
+            total_admins=sum(p.perfil == ADMIN_PROFILE for p in profissionais),
+            total_fisioterapeutas=sum(
+                p.perfil == PHYSIOTHERAPIST_PROFILE for p in profissionais
+            ),
+            dia_atual=dia_atual,
+            agenda_de_hoje=agenda_de_hoje,
+            pacientes_ativos=Patient.query.filter_by(ativo=True).count(),
+            ciclos_ativos=TreatmentCycle.query.filter_by(status="ATIVO").count(),
+            grupos_ativos=Group.query.filter_by(ativo=True).count(),
+            resumo=_resumo_do_mes(Appointment.query, dia_atual),
         )
 
     @app.get("/dashboard/fisioterapeuta")
     @role_required(PHYSIOTHERAPIST_PROFILE)
     def physiotherapist_dashboard():
-        return render_template("dashboard_fisioterapeuta.html")
+        dia_atual = hoje()
+        meus = Appointment.query.filter(
+            Appointment.fisioterapeuta_id == current_user.id
+        )
+
+        agenda_de_hoje = (
+            meus.filter(Appointment.data == dia_atual).order_by(Appointment.hora).all()
+        )
+        proximos = (
+            meus.filter(
+                Appointment.data > dia_atual,
+                Appointment.status.in_(("AGENDADO", "CONFIRMADO")),
+            )
+            .order_by(Appointment.data, Appointment.hora)
+            .limit(5)
+            .all()
+        )
+
+        return render_template(
+            "dashboard_fisioterapeuta.html",
+            dia_atual=dia_atual,
+            agenda_de_hoje=agenda_de_hoje,
+            proximos=proximos,
+            meus_pacientes=Patient.query.filter_by(
+                ativo=True, fisioterapeuta_id=current_user.id
+            ).count(),
+            meus_grupos=Group.query.filter_by(
+                ativo=True, fisioterapeuta_id=current_user.id
+            ).all(),
+            resumo=_resumo_do_mes(meus, dia_atual),
+        )
+
 
     # ------------------------------------------------------------------
     # Pacientes

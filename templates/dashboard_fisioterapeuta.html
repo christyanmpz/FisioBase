@@ -11,7 +11,7 @@
       </div>
       <div class="topbar-date">
         <span class="date-icon" aria-hidden="true">◷</span>
-        <span>Área do profissional</span>
+        <span>{{ dia_atual.strftime("%d/%m/%Y") }}</span>
       </div>
     </header>
 
@@ -32,44 +32,121 @@
           <span class="stat-label">Atendimentos hoje</span>
           <span class="stat-icon stat-icon--blue" aria-hidden="true">◷</span>
         </div>
-        <strong class="stat-value">—</strong>
-        <span class="stat-caption">agenda em preparação</span>
+        <strong class="stat-value">{{ agenda_de_hoje|length }}</strong>
+        <span class="stat-caption">na sua agenda de hoje</span>
       </article>
       <article class="stat-card">
         <div class="stat-card__top">
           <span class="stat-label">Meus pacientes</span>
           <span class="stat-icon stat-icon--green" aria-hidden="true">+</span>
         </div>
-        <strong class="stat-value">—</strong>
-        <span class="stat-caption">cadastro na próxima etapa</span>
+        <strong class="stat-value">{{ meus_pacientes }}</strong>
+        <span class="stat-caption">cadastros ativos</span>
       </article>
       <article class="stat-card">
         <div class="stat-card__top">
           <span class="stat-label">Presenças do mês</span>
           <span class="stat-icon stat-icon--yellow" aria-hidden="true">✓</span>
         </div>
-        <strong class="stat-value">—</strong>
-        <span class="stat-caption">registro de atendimentos em breve</span>
+        <strong class="stat-value">{{ resumo.realizados }}</strong>
+        <span class="stat-caption">
+          {{ resumo.faltas }} falta(s) · {{ resumo.taxa_presenca }}% de presença
+        </span>
       </article>
     </section>
 
-    <section class="content-grid content-grid--single">
-      <article class="panel">
+    <section class="content-grid">
+      <article class="panel panel--wide">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow eyebrow--muted">Seu próximo módulo</p>
-            <h2>Área pronta para evoluir</h2>
+            <p class="eyebrow eyebrow--muted">Hoje</p>
+            <h2>Sua agenda</h2>
           </div>
-          <span class="role-badge role-badge--fisioterapeuta">Acesso restrito</span>
+          <a class="button button--ghost button--small" href="{{ url_for('agenda') }}">Abrir agenda</a>
         </div>
+
+        {% if agenda_de_hoje %}
+        <div class="table-wrap">
+          <table>
+            <caption class="sr-only">Atendimentos de hoje</caption>
+            <thead>
+              <tr>
+                <th scope="col">Hora</th>
+                <th scope="col">Paciente</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Situação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in agenda_de_hoje %}
+              <tr>
+                <td><strong>{{ item.hora.strftime("%H:%M") }}</strong></td>
+                <td>{{ item.paciente.nome if item.paciente else "Grupo" }}</td>
+                <td class="muted-cell">{{ "Avaliação" if item.tipo == "AVALIACAO" else "Sessão" }}</td>
+                <td>
+                  <span class="role-badge role-badge--{{ 'fisioterapeuta' if item.status == 'REALIZADO' else 'admin' }}">
+                    {{ {"AGENDADO": "Agendado", "CONFIRMADO": "Confirmado", "REALIZADO": "Compareceu", "FALTOU": "Faltou", "CANCELADO": "Cancelado"}[item.status] }}
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
         <div class="empty-state">
-          <div class="empty-state__icon" aria-hidden="true">+</div>
-          <h3>Agenda e pacientes entram na próxima etapa</h3>
-          <p>
-            Seu perfil já está protegido. Quando os módulos clínicos forem adicionados,
-            você verá somente a sua agenda e os seus próprios pacientes aqui.
-          </p>
+          <div class="empty-state__icon" aria-hidden="true">◷</div>
+          <h3>Nenhum atendimento hoje</h3>
+          <p>Sua agenda de hoje está livre.</p>
         </div>
+        {% endif %}
       </article>
+
+      <aside class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow eyebrow--muted">Em seguida</p>
+            <h2>Próximos atendimentos</h2>
+          </div>
+        </div>
+
+        {% if proximos %}
+        <div class="roadmap">
+          {% for item in proximos %}
+          <div class="roadmap-item">
+            <div>
+              <strong>{{ item.paciente.nome if item.paciente else "Grupo" }}</strong>
+              <span>{{ item.data.strftime("%d/%m") }} às {{ item.hora.strftime("%H:%M") }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="panel-note">Nenhum atendimento futuro agendado.</p>
+        {% endif %}
+
+        {% if meus_grupos %}
+        <div class="panel-heading" style="margin-top:17px;">
+          <div>
+            <p class="eyebrow eyebrow--muted">Semanal</p>
+            <h2>Meus grupos</h2>
+          </div>
+        </div>
+        <div class="roadmap">
+          {% for grupo in meus_grupos %}
+          <div class="roadmap-item">
+            <div>
+              <strong>{{ grupo.nome }}</strong>
+              <span>
+                {{ grupo.dia_semana_nome }}
+                {% if grupo.hora %}às {{ grupo.hora.strftime("%H:%M") }}{% endif %}
+                · {{ grupo.participacoes_ativas|length }}/{{ grupo.capacidade_max }}
+              </span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </aside>
     </section>
 {% endblock %}

@@ -4,16 +4,14 @@
 {% block body_class %}app-page{% endblock %}
 
 {% block body %}
-
-  
     <header class="topbar">
       <div>
         <p class="breadcrumb">Visão geral <span>/</span> Dashboard</p>
-        <h1>Bom dia, {{ current_user.nome.split()[0] }}.</h1>
+        <h1>Olá, {{ current_user.nome.split()[0] }}.</h1>
       </div>
       <div class="topbar-date">
         <span class="date-icon" aria-hidden="true">◷</span>
-        <span>Visão administrativa</span>
+        <span>{{ dia_atual.strftime("%d/%m/%Y") }}</span>
       </div>
     </header>
 
@@ -28,30 +26,40 @@
       </span>
     </section>
 
-    <section class="stats-grid" aria-label="Resumo dos usuários">
+    <section class="stats-grid" aria-label="Resumo da operação">
       <article class="stat-card">
         <div class="stat-card__top">
-          <span class="stat-label">Usuários ativos</span>
-          <span class="stat-icon stat-icon--blue" aria-hidden="true">◎</span>
+          <span class="stat-label">Atendimentos hoje</span>
+          <span class="stat-icon stat-icon--blue" aria-hidden="true">◷</span>
         </div>
-        <strong class="stat-value">{{ profissionais|length }}</strong>
-        <span class="stat-caption">contas cadastradas</span>
+        <strong class="stat-value">{{ agenda_de_hoje|length }}</strong>
+        <span class="stat-caption">em toda a clínica</span>
       </article>
       <article class="stat-card">
         <div class="stat-card__top">
-          <span class="stat-label">Administradores</span>
-          <span class="stat-icon stat-icon--yellow" aria-hidden="true">◆</span>
-        </div>
-        <strong class="stat-value">{{ total_admins }}</strong>
-        <span class="stat-caption">com acesso total</span>
-      </article>
-      <article class="stat-card">
-        <div class="stat-card__top">
-          <span class="stat-label">Fisioterapeutas</span>
+          <span class="stat-label">Pacientes ativos</span>
           <span class="stat-icon stat-icon--green" aria-hidden="true">+</span>
         </div>
-        <strong class="stat-value">{{ total_fisioterapeutas }}</strong>
-        <span class="stat-caption">profissionais da equipe</span>
+        <strong class="stat-value">{{ pacientes_ativos }}</strong>
+        <span class="stat-caption">{{ ciclos_ativos }} ciclo(s) em tratamento</span>
+      </article>
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Presenças do mês</span>
+          <span class="stat-icon stat-icon--yellow" aria-hidden="true">✓</span>
+        </div>
+        <strong class="stat-value">{{ resumo.realizados }}</strong>
+        <span class="stat-caption">
+          {{ resumo.faltas }} falta(s) · {{ resumo.taxa_presenca }}% de presença
+        </span>
+      </article>
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Grupos ativos</span>
+          <span class="stat-icon stat-icon--blue" aria-hidden="true">◎</span>
+        </div>
+        <strong class="stat-value">{{ grupos_ativos }}</strong>
+        <span class="stat-caption">{{ total_fisioterapeutas }} profissional(is) na equipe</span>
       </article>
     </section>
 
@@ -59,67 +67,73 @@
       <article class="panel panel--wide">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow eyebrow--muted">Controle de acesso</p>
-            <h2>Usuários do sistema</h2>
+            <p class="eyebrow eyebrow--muted">Hoje</p>
+            <h2>Agenda da clínica</h2>
           </div>
-          <span class="panel-count">{{ profissionais|length }} registros</span>
+          <a class="button button--ghost button--small" href="{{ url_for('agenda') }}">Abrir agenda</a>
         </div>
+
+        {% if agenda_de_hoje %}
         <div class="table-wrap">
           <table>
-            <caption class="sr-only">Lista de usuários cadastrados no sistema</caption>
+            <caption class="sr-only">Atendimentos de hoje na clínica</caption>
             <thead>
               <tr>
+                <th scope="col">Hora</th>
+                <th scope="col">Paciente</th>
                 <th scope="col">Profissional</th>
-                <th scope="col">E-mail</th>
-                <th scope="col">Perfil</th>
-                <th scope="col">Status</th>
+                <th scope="col">Situação</th>
               </tr>
             </thead>
             <tbody>
-              {% for profissional in profissionais %}
+              {% for item in agenda_de_hoje %}
               <tr>
+                <td><strong>{{ item.hora.strftime("%H:%M") }}</strong></td>
+                <td>{{ item.paciente.nome if item.paciente else "Grupo" }}</td>
+                <td class="muted-cell">{{ item.fisioterapeuta.nome }}</td>
                 <td>
-                  <div class="table-person">
-                    <span class="avatar avatar--table {% if profissional.perfil == 'FISIOTERAPEUTA' %}avatar--green{% endif %}" aria-hidden="true">{{ profissional.nome[0] }}</span>
-                    <strong>{{ profissional.nome }}</strong>
-                  </div>
-                </td>
-                <td class="muted-cell">{{ profissional.email }}</td>
-                <td>
-                  <span class="role-badge role-badge--{{ profissional.perfil|lower }}">
-                    {{ "Administrador" if profissional.perfil == "ADMIN" else "Fisioterapeuta" }}
+                  <span class="role-badge role-badge--{{ 'fisioterapeuta' if item.status == 'REALIZADO' else 'admin' }}">
+                    {{ {"AGENDADO": "Agendado", "CONFIRMADO": "Confirmado", "REALIZADO": "Compareceu", "FALTOU": "Faltou", "CANCELADO": "Cancelado"}[item.status] }}
                   </span>
                 </td>
-                <td><span class="status-badge"><span class="status-dot" aria-hidden="true"></span>{{"Ativo" if profissional.ativo else "Inativo"}}</span></td>
               </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
+        {% else %}
+        <div class="empty-state">
+          <div class="empty-state__icon" aria-hidden="true">◷</div>
+          <h3>Nenhum atendimento hoje</h3>
+          <p>A agenda da clínica está livre para hoje.</p>
+        </div>
+        {% endif %}
       </article>
 
-      <aside class="panel next-panel">
+      <aside class="panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow eyebrow--muted">Próximos passos</p>
-            <h2>Base inicial</h2>
+            <p class="eyebrow eyebrow--muted">Controle de acesso</p>
+            <h2>Equipe</h2>
           </div>
+          <a class="button button--ghost button--small" href="{{ url_for('listar_usuarios') }}">Gerenciar</a>
         </div>
         <div class="roadmap">
-          <div class="roadmap-item roadmap-item--done">
-            <span class="roadmap-marker" aria-hidden="true">✓</span>
-            <div><strong>Autenticação</strong><span>Concluído</span></div>
-          </div>
-          <div class="roadmap-item roadmap-item--current">
-            <span class="roadmap-marker" aria-hidden="true">2</span>
-            <div><strong>Pacientes</strong><span>Próxima etapa</span></div>
-          </div>
+          {% for profissional in profissionais %}
           <div class="roadmap-item">
-            <span class="roadmap-marker" aria-hidden="true">3</span>
-            <div><strong>Agenda</strong><span>Planejado</span></div>
+            <div>
+              <strong>{{ profissional.nome }}</strong>
+              <span>
+                {{ "Administrador" if profissional.perfil == "ADMIN" else "Fisioterapeuta" }}
+                {% if not profissional.ativo %}· inativo{% endif %}
+              </span>
+            </div>
           </div>
+          {% endfor %}
         </div>
-        <div class="panel-note">A estrutura está pronta para receber os próximos módulos do projeto.</div>
+        <div class="panel-note">
+          {{ profissionais|length }} conta(s) · {{ total_admins }} com acesso total.
+        </div>
       </aside>
     </section>
 {% endblock %}
