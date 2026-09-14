@@ -1,9 +1,18 @@
 """Testes da agenda e da validação de CPF."""
 
-from datetime import date
+from datetime import date, timedelta
 
 from conftest import SENHA_ADMIN, SENHA_FISIO, fazer_login
 from models import Appointment, Patient, TreatmentCycle, User, db
+
+
+def proxima_segunda():
+    """Segunda-feira futura: a agenda recusa data passada e fim de semana."""
+    hoje = date.today()
+    return hoje + timedelta(days=(7 - hoje.weekday()) or 7)
+
+
+DIA_UTIL = proxima_segunda()
 
 
 def id_do_usuario(app, email):
@@ -39,7 +48,7 @@ def agendar(client, paciente_id, hora="09:00", **campos):
     dados = {
         "paciente_id": str(paciente_id),
         "tipo": "AVALIACAO",
-        "data": "2026-10-05",
+        "data": DIA_UTIL.isoformat(),
         "hora": hora,
     }
     dados.update(campos)
@@ -59,7 +68,7 @@ def test_agendar_avaliacao_grava_no_banco(client, app):
         assert item.tipo == "AVALIACAO"
         assert item.status == "AGENDADO"
         assert item.numero_sessao is None
-        assert item.data == date(2026, 10, 5)
+        assert item.data == DIA_UTIL
 
 
 def test_sessao_so_avanca_apos_a_anterior_ser_realizada(client, app):
@@ -120,7 +129,7 @@ def test_sessao_sem_ciclo_e_recusada(client, app):
         data={
             "paciente_id": str(id_paciente),
             "tipo": "SESSAO",
-            "data": "2026-10-05",
+            "data": DIA_UTIL.isoformat(),
             "hora": "09:00",
         },
     )
@@ -142,7 +151,7 @@ def test_terceiro_paciente_no_mesmo_horario_e_recusado(client, app):
         data={
             "paciente_id": str(terceiro),
             "tipo": "AVALIACAO",
-            "data": "2026-10-05",
+            "data": DIA_UTIL.isoformat(),
             "hora": "09:00",
         },
     )
@@ -207,7 +216,7 @@ def test_fisioterapeuta_nao_agenda_paciente_alheio(client, app):
         data={
             "paciente_id": str(alheio),
             "tipo": "AVALIACAO",
-            "data": "2026-10-05",
+            "data": DIA_UTIL.isoformat(),
             "hora": "09:00",
         },
     )
@@ -226,7 +235,7 @@ def test_agenda_do_fisioterapeuta_mostra_so_os_dele(client, app):
     client.post("/logout")
 
     fazer_login(client, "fisio@teste.com", SENHA_FISIO)
-    corpo = client.get("/agenda?data=2026-10-05").get_data(as_text=True)
+    corpo = client.get(f"/agenda?data={DIA_UTIL.isoformat()}").get_data(as_text=True)
 
     assert "Paciente Do Fisio" in corpo
     assert "Paciente Do Admin" not in corpo

@@ -52,7 +52,8 @@
 
       <div class="field">
         <label for="data">Data</label>
-        <input id="data" name="data" type="date" required>
+        <input id="data" name="data" type="date" min="{{ hoje.isoformat() }}" required>
+        <small>A clínica atende de segunda a sexta-feira.</small>
       </div>
 
       <div class="field">

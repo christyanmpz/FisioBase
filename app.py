@@ -55,7 +55,18 @@ MODALIDADES = ("INDIVIDUAL", "GRUPO")
 STATUS_ENCERRAMENTO = ("CONCLUIDO", "ALTA", "ABANDONO")
 LIMITE_POR_HORARIO = 2
 STATUS_AGENDAMENTO = ("AGENDADO", "CONFIRMADO", "REALIZADO", "CANCELADO", "FALTOU")
-HORARIOS = [f"{h:02d}:{m:02d}" for h in range(8, 17) for m in (0, 30)]
+# Expediente da clínica: 07:30 às 15:30, sessões de 30 min, encerrando às 16h.
+# O almoço fica fora da grade para todos; bloqueios por profissional virão
+# com a tela de disponibilidade (triagens fixas, reunião e horários fechados).
+HORARIO_ALMOCO = "12:00"
+HORARIOS = [
+    f"{h:02d}:{m:02d}"
+    for h in range(7, 16)
+    for m in (0, 30)
+    if (h, m) >= (7, 30) and f"{h:02d}:{m:02d}" != HORARIO_ALMOCO
+]
+# A clínica não atende sábado nem domingo (0 = segunda ... 6 = domingo).
+DIAS_DE_ATENDIMENTO = (0, 1, 2, 3, 4)
 # Status em que a sessão aceita evolução clínica (e só a partir do dia dela).
 STATUS_COM_EVOLUCAO = ("AGENDADO", "CONFIRMADO", "REALIZADO")
 # Status que registram comparecimento; só valem a partir do dia da sessão.
@@ -771,6 +782,7 @@ def register_routes(app: Flask) -> None:
                     pacientes=pacientes,
                     horarios=HORARIOS,
                     ciclos=ciclos,
+                    hoje=hoje(),
                 ),
                 codigo,
             )
@@ -795,6 +807,22 @@ def register_routes(app: Flask) -> None:
                 hora = time.fromisoformat(request.form.get("hora", "").strip())
             except ValueError:
                 flash("Informe data e horário válidos.", "error")
+                return form(400)
+
+            if data_agenda.weekday() not in DIAS_DE_ATENDIMENTO:
+                flash("A clínica atende de segunda a sexta-feira.", "error")
+                return form(400)
+
+            if data_agenda < hoje():
+                flash("Não é possível agendar em data que já passou.", "error")
+                return form(400)
+
+            if hora.strftime("%H:%M") not in HORARIOS:
+                flash(
+                    f"Horário fora do expediente. Escolha entre {HORARIOS[0]} "
+                    f"e {HORARIOS[-1]}, de 30 em 30 minutos.",
+                    "error",
+                )
                 return form(400)
 
             fisioterapeuta_id = paciente.fisioterapeuta_id or current_user.id
