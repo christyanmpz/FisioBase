@@ -34,9 +34,16 @@ from sqlalchemy.pool import NullPool
 
 from models import (
     ADMIN_PROFILE,
+    GROUP_CAPACITY_DEFAULT,
+    GROUP_CAPACITY_MAX,
+    GROUP_CAPACITY_MIN,
+    GROUP_REGIONS,
     PHYSIOTHERAPIST_PROFILE,
+    WEEKDAY_NAMES,
     Appointment,
     Evolution,
+    Group,
+    GroupPatient,
     Patient,
     TreatmentCycle,
     User,
@@ -67,6 +74,8 @@ HORARIOS = [
 ]
 # A clínica não atende sábado nem domingo (0 = segunda ... 6 = domingo).
 DIAS_DE_ATENDIMENTO = (0, 1, 2, 3, 4)
+# A sessao de grupo dura 1 hora: ocupa dois horarios seguidos da grade.
+SLOTS_POR_GRUPO = 2
 # Status em que a sessão aceita evolução clínica (e só a partir do dia dela).
 STATUS_COM_EVOLUCAO = ("AGENDADO", "CONFIRMADO", "REALIZADO")
 # Status que registram comparecimento; só valem a partir do dia da sessão.
@@ -1100,6 +1109,249 @@ def register_routes(app: Flask) -> None:
             )
 
         return form()
+
+
+    # ------------------------------------------------------------------
+    # Grupos terapêuticos
+    # ------------------------------------------------------------------
+
+    def _slots_do_grupo(rotulo_hora):
+        """Horários da grade que uma sessão de grupo ocupa, ou None.
+
+        O grupo dura 1 hora, então precisa de dois horários seguidos. Não
+        serve um início que caia antes do almoço ou no fim do expediente,
+        porque aí o segundo horário não existe.
+        """
+        if rotulo_hora not in HORARIOS:
+            return None
+        inicio = HORARIOS.index(rotulo_hora)
+        if inicio + SLOTS_POR_GRUPO > len(HORARIOS):
+            return None
+        slots = HORARIOS[inicio : inicio + SLOTS_POR_GRUPO]
+        anterior = time.fromisoformat(slots[0])
+        for rotulo in slots[1:]:
+            atual = time.fromisoformat(rotulo)
+            minutos = (atual.hour * 60 + atual.minute) - (
+                anterior.hour * 60 + anterior.minute
+            )
+            if minutos != 30:
+                return None
+            anterior = atual
+        return slots
+
+    HORARIOS_DE_GRUPO = [h for h in HORARIOS if _slots_do_grupo(h)]
+
+    def _grupo_no_mesmo_horario(fisioterapeuta_id, dia_semana, hora, ignorar_id=None):
+        """Outro grupo ativo do mesmo condutor que ocupe algum horário em comum."""
+        slots = set(_slots_do_grupo(hora.strftime("%H:%M")) or [])
+        consulta = Group.query.filter(
+            Group.fisioterapeuta_id == fisioterapeuta_id,
+            Group.dia_semana == dia_semana,
+            Group.ativo.is_(True),
+        )
+        if ignorar_id is not None:
+            consulta = consulta.filter(Group.id != ignorar_id)
+        for outro in consulta.all():
+            if outro.hora is None:
+                continue
+            ocupados = set(_slots_do_grupo(outro.hora.strftime("%H:%M")) or [])
+            if slots & ocupados:
+                return outro
+        return None
+
+    def _dados_do_grupo(grupo=None):
+        """Lê e valida o formulário. Devolve (valores, mensagem_de_erro)."""
+        valores = {
+            "nome": request.form.get("nome", "").strip(),
+            "regiao": request.form.get("regiao", "").strip().upper(),
+            "dia_semana": request.form.get("dia_semana", "").strip(),
+            "hora": request.form.get("hora", "").strip(),
+            "capacidade_max": request.form.get("capacidade_max", "").strip(),
+            "fisioterapeuta_id": request.form.get("fisioterapeuta_id", "").strip(),
+        }
+
+        if not valores["nome"]:
+            return valores, "Informe o nome do grupo."
+        if len(valores["nome"]) > 100:
+            return valores, "O nome do grupo deve ter até 100 caracteres."
+        if valores["regiao"] not in GROUP_REGIONS:
+            return valores, "Selecione uma região válida."
+
+        try:
+            dia = int(valores["dia_semana"])
+        except ValueError:
+            return valores, "Selecione o dia da semana."
+        if dia not in DIAS_DE_ATENDIMENTO:
+            return valores, "A clínica atende de segunda a sexta-feira."
+
+        if valores["hora"] not in HORARIOS_DE_GRUPO:
+            return valores, (
+                "Horário inválido para grupo. A sessão dura 1 hora e precisa de "
+                "dois horários seguidos dentro do expediente."
+            )
+
+        try:
+            capacidade = int(valores["capacidade_max"] or GROUP_CAPACITY_DEFAULT)
+        except ValueError:
+            return valores, "Capacidade inválida."
+        if not GROUP_CAPACITY_MIN <= capacidade <= GROUP_CAPACITY_MAX:
+            return valores, (
+                f"A capacidade deve estar entre {GROUP_CAPACITY_MIN} e "
+                f"{GROUP_CAPACITY_MAX} pessoas."
+            )
+
+        condutor_id = grupo.fisioterapeuta_id if grupo else current_user.id
+        if current_user.perfil == ADMIN_PROFILE and valores["fisioterapeuta_id"]:
+            condutor = db.session.get(User, int(valores["fisioterapeuta_id"]))
+            if condutor is None or not condutor.ativo:
+                return valores, "Selecione um profissional válido para conduzir."
+            condutor_id = condutor.id
+
+        hora = time.fromisoformat(valores["hora"])
+        conflito = _grupo_no_mesmo_horario(
+            condutor_id, dia, hora, ignorar_id=grupo.id if grupo else None
+        )
+        if conflito is not None:
+            return valores, (
+                f"O profissional já conduz o grupo {conflito.nome} neste horário."
+            )
+
+        valores["dia"] = dia
+        valores["capacidade"] = capacidade
+        valores["condutor_id"] = condutor_id
+        valores["hora_obj"] = hora
+        return valores, None
+
+    @app.get("/grupos")
+    @login_required
+    def listar_grupos():
+        consulta = Group.query
+        if current_user.perfil != ADMIN_PROFILE:
+            consulta = consulta.filter(Group.fisioterapeuta_id == current_user.id)
+
+        grupos = consulta.order_by(
+            Group.ativo.desc(), Group.dia_semana, Group.hora, Group.nome
+        ).all()
+        return render_template("grupos_lista.html", grupos=grupos)
+
+    @app.route("/grupos/novo", methods=["GET", "POST"])
+    @login_required
+    def novo_grupo():
+        def form(codigo=200, valores=None):
+            return (
+                render_template(
+                    "grupo_form.html",
+                    grupo=None,
+                    valores=valores or {},
+                    regioes=GROUP_REGIONS,
+                    horarios=HORARIOS_DE_GRUPO,
+                    dias=[(i, WEEKDAY_NAMES[i]) for i in DIAS_DE_ATENDIMENTO],
+                    capacidade_padrao=GROUP_CAPACITY_DEFAULT,
+                    fisioterapeutas=_fisioterapeutas_ativos(),
+                ),
+                codigo,
+            )
+
+        if request.method == "POST":
+            valores, erro = _dados_do_grupo()
+            if erro:
+                flash(erro, "error")
+                return form(400, valores)
+
+            grupo = Group(
+                nome=valores["nome"],
+                regiao=valores["regiao"],
+                fisioterapeuta_id=valores["condutor_id"],
+                dia_semana=valores["dia"],
+                hora=valores["hora_obj"],
+                capacidade_max=valores["capacidade"],
+                ativo=True,
+            )
+            db.session.add(grupo)
+            db.session.commit()
+            flash("Grupo criado.", "success")
+            return redirect(url_for("listar_grupos"))
+
+        return form()
+
+    @app.route("/grupos/<int:grupo_id>/editar", methods=["GET", "POST"])
+    @login_required
+    def editar_grupo(grupo_id: int):
+        grupo = db.session.get(Group, grupo_id)
+        if grupo is None:
+            abort(404)
+        if not grupo.acessivel_por(current_user):
+            abort(403)
+
+        def form(codigo=200, valores=None):
+            return (
+                render_template(
+                    "grupo_form.html",
+                    grupo=grupo,
+                    valores=valores or {},
+                    regioes=GROUP_REGIONS,
+                    horarios=HORARIOS_DE_GRUPO,
+                    dias=[(i, WEEKDAY_NAMES[i]) for i in DIAS_DE_ATENDIMENTO],
+                    capacidade_padrao=GROUP_CAPACITY_DEFAULT,
+                    fisioterapeutas=_fisioterapeutas_ativos(),
+                ),
+                codigo,
+            )
+
+        if request.method == "POST":
+            valores, erro = _dados_do_grupo(grupo)
+            if erro:
+                flash(erro, "error")
+                return form(400, valores)
+
+            if valores["condutor_id"] != grupo.fisioterapeuta_id:
+                ativos = len(grupo.participacoes_ativas)
+                if ativos:
+                    flash(
+                        f"Este grupo tem {ativos} paciente(s). Troque o condutor "
+                        "apenas em grupo vazio.",
+                        "error",
+                    )
+                    return form(400, valores)
+
+            if valores["capacidade"] < len(grupo.participacoes_ativas):
+                flash(
+                    "A capacidade não pode ser menor que o número de pacientes "
+                    "já no grupo.",
+                    "error",
+                )
+                return form(400, valores)
+
+            grupo.nome = valores["nome"]
+            grupo.regiao = valores["regiao"]
+            grupo.fisioterapeuta_id = valores["condutor_id"]
+            grupo.dia_semana = valores["dia"]
+            grupo.hora = valores["hora_obj"]
+            grupo.capacidade_max = valores["capacidade"]
+            db.session.commit()
+            flash("Grupo atualizado.", "success")
+            return redirect(url_for("listar_grupos"))
+
+        return form()
+
+    @app.post("/grupos/<int:grupo_id>/situacao")
+    @login_required
+    def alternar_situacao_grupo(grupo_id: int):
+        """Desativa ou reativa o grupo. Grupo nunca é excluído: a composição
+        e o histórico de presença dependem dele."""
+        grupo = db.session.get(Group, grupo_id)
+        if grupo is None:
+            abort(404)
+        if not grupo.acessivel_por(current_user):
+            abort(403)
+
+        grupo.ativo = not grupo.ativo
+        db.session.commit()
+        flash(
+            f"Grupo {'reativado' if grupo.ativo else 'desativado'}.",
+            "success",
+        )
+        return redirect(url_for("listar_grupos"))
 
 
 def register_error_handlers(app: Flask) -> None:

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}{{ "Editar grupo" if grupo else "Novo grupo" }} · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% macro valor(campo, atual) -%}
+{{ valores[campo] if valores.get(campo) is not none and valores.get(campo) != "" else atual }}
+{%- endmacro %}
+
+{% block body %}
+    <header class="topbar">
+      <div>
+        <p class="breadcrumb">Grupos <span>/</span> {{ "Editar" if grupo else "Novo" }}</p>
+        <h1>{{ "Editar grupo" if grupo else "Novo grupo" }}</h1>
+      </div>
+      <a class="button button--ghost" href="{{ url_for('listar_grupos') }}">Voltar</a>
+    </header>
+
+    <form method="post" class="form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="field">
+        <label for="nome">Nome do grupo</label>
+        <input id="nome" name="nome" maxlength="100" required autofocus
+               value="{{ valor('nome', grupo.nome if grupo else '')|trim }}">
+        <small>Como aparece na agenda, por exemplo "Grupo Ombro — manhã".</small>
+      </div>
+
+      <div class="field">
+        <label for="regiao">Região</label>
+        <select id="regiao" name="regiao" required>
+          {% set regiao_atual = valor('regiao', grupo.regiao if grupo else '')|trim %}
+          <option value="">Selecione</option>
+          {% for opcao in regioes %}
+          <option value="{{ opcao }}" {% if regiao_atual == opcao %}selected{% endif %}>
+            {{ opcao|capitalize }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {% if current_user.perfil == "ADMIN" %}
+      <div class="field">
+        <label for="fisioterapeuta_id">Profissional que conduz</label>
+        <select id="fisioterapeuta_id" name="fisioterapeuta_id">
+          {% set condutor_atual = valor('fisioterapeuta_id', grupo.fisioterapeuta_id if grupo else current_user.id)|trim %}
+          {% for profissional in fisioterapeutas %}
+          <option value="{{ profissional.id }}" {% if condutor_atual == profissional.id|string %}selected{% endif %}>
+            {{ profissional.nome }}
+          </option>
+          {% endfor %}
+        </select>
+        <small>Só é possível trocar o condutor enquanto o grupo estiver vazio.</small>
+      </div>
+      {% endif %}
+
+      <div class="field">
+        <label for="dia_semana">Dia da semana</label>
+        <select id="dia_semana" name="dia_semana" required>
+          {% set dia_atual = valor('dia_semana', grupo.dia_semana if grupo and grupo.dia_semana is not none else '')|trim %}
+          <option value="">Selecione</option>
+          {% for numero, nome in dias %}
+          <option value="{{ numero }}" {% if dia_atual == numero|string %}selected{% endif %}>
+            {{ nome }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="hora">Horário de início</label>
+        <select id="hora" name="hora" required>
+          {% set hora_atual = valor('hora', grupo.hora.strftime("%H:%M") if grupo and grupo.hora else '')|trim %}
+          <option value="">Selecione</option>
+          {% for horario in horarios %}
+          <option value="{{ horario }}" {% if hora_atual == horario %}selected{% endif %}>
+            {{ horario }}
+          </option>
+          {% endfor %}
+        </select>
+        <small>A sessão de grupo dura 1 hora e ocupa dois horários seguidos.</small>
+      </div>
+
+      <div class="field">
+        <label for="capacidade_max">Capacidade</label>
+        <input id="capacidade_max" name="capacidade_max" type="number" min="1" max="20"
+               value="{{ valor('capacidade_max', grupo.capacidade_max if grupo else capacidade_padrao)|trim }}">
+        <small>A clínica trabalha com 12 a 14 pessoas por grupo.</small>
+      </div>
+
+      <div class="form-actions">
+        <button class="button button--primary" type="submit">
+          {{ "Salvar alterações" if grupo else "Criar grupo" }}
+        </button>
+        <a class="button button--ghost" href="{{ url_for('listar_grupos') }}">Cancelar</a>
+      </div>
+    </form>
+{% endblock %}
