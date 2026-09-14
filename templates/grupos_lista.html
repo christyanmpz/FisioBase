@@ -59,6 +59,7 @@
               </td>
               <td>
                 <div class="table-actions">
+                  <a class="button button--ghost button--small" href="{{ url_for('composicao_do_grupo', grupo_id=grupo.id) }}">Pacientes</a>
                   <a class="button button--ghost button--small" href="{{ url_for('editar_grupo', grupo_id=grupo.id) }}">Editar</a>
                   <form method="post" action="{{ url_for('alternar_situacao_grupo', grupo_id=grupo.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

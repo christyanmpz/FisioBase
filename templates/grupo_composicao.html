@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}{{ grupo.nome }} · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar">
+      <div>
+        <p class="breadcrumb">Grupos <span>/</span> Composição</p>
+        <h1>{{ grupo.nome }}</h1>
+      </div>
+      <a class="button button--ghost" href="{{ url_for('listar_grupos') }}">Voltar</a>
+    </header>
+
+    <section class="stats-grid" aria-label="Resumo do grupo">
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Pacientes</span>
+          <span class="stat-icon stat-icon--green" aria-hidden="true">✓</span>
+        </div>
+        <strong class="stat-value">{{ participacoes|length }}</strong>
+        <span class="stat-caption">de {{ grupo.capacidade_max }} vagas</span>
+      </article>
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Encontro semanal</span>
+          <span class="stat-icon stat-icon--blue" aria-hidden="true">◷</span>
+        </div>
+        <strong class="stat-value">
+          {% if grupo.hora %}{{ grupo.hora.strftime("%H:%M") }}{% else %}—{% endif %}
+        </strong>
+        <span class="stat-caption">{{ grupo.dia_semana_nome }} · 1 hora</span>
+      </article>
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Região</span>
+          <span class="stat-icon stat-icon--yellow" aria-hidden="true">◎</span>
+        </div>
+        <strong class="stat-value">{{ grupo.regiao|capitalize }}</strong>
+        <span class="stat-caption">conduzido por {{ grupo.fisioterapeuta.nome }}</span>
+      </article>
+    </section>
+
+    {% if not grupo.ativo %}
+    <p class="flash flash--info">
+      Este grupo está desativado e não recebe novos pacientes. Reative-o na lista de grupos.
+    </p>
+    {% endif %}
+
+    <section class="panel" style="margin-top:17px;">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Composição</p>
+          <h2>Pacientes no grupo</h2>
+        </div>
+        <span class="panel-count">{{ grupo.vagas_disponiveis }} vagas livres</span>
+      </div>
+
+      {% if participacoes %}
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Pacientes que participam do grupo</caption>
+          <thead>
+            <tr>
+              <th scope="col">Paciente</th>
+              <th scope="col">Entrada</th>
+              <th scope="col">Ciclo</th>
+              <th scope="col">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for participacao in participacoes %}
+            <tr>
+              <td>
+                <div class="table-person">
+                  <span class="avatar avatar--table avatar--green" aria-hidden="true">{{ participacao.paciente.nome[0] }}</span>
+                  <strong>{{ participacao.paciente.nome }}</strong>
+                </div>
+              </td>
+              <td class="muted-cell">{{ participacao.data_entrada.strftime("%d/%m/%Y") }}</td>
+              <td class="muted-cell">
+                {% if participacao.ciclo %}
+                  {{ participacao.ciclo.regiao|capitalize }} · {{ participacao.ciclo.total_sessoes }} sessões
+                {% else %}—{% endif %}
+              </td>
+              <td>
+                <form method="post" action="{{ url_for('registrar_saida_do_grupo', grupo_id=grupo.id, participacao_id=participacao.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="button button--ghost button--small" type="submit">Registrar saída</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <div class="empty-state__icon" aria-hidden="true">□</div>
+        <h3>Nenhum paciente no grupo</h3>
+        <p>Use o formulário abaixo para montar a lista de presença.</p>
+      </div>
+      {% endif %}
+    </section>
+
+    {% if grupo.ativo %}
+    <section class="panel" style="margin-top:17px;">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Entrada</p>
+          <h2>Adicionar paciente</h2>
+        </div>
+      </div>
+
+      {% if grupo.lotado %}
+      <p class="panel-note">
+        O grupo atingiu a lotação máxima de {{ grupo.capacidade_max }} pessoas.
+        Registre a saída de alguém ou aumente a capacidade na edição do grupo.
+      </p>
+      {% elif disponiveis %}
+      <form method="post" action="{{ url_for('adicionar_ao_grupo', grupo_id=grupo.id) }}" class="form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="field">
+          <label for="paciente_id">Paciente</label>
+          <select id="paciente_id" name="paciente_id" required>
+            <option value="">Selecione</option>
+            {% for paciente in disponiveis %}
+            <option value="{{ paciente.id }}">{{ paciente.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="ciclo_id">Ciclo de tratamento (opcional)</label>
+          <select id="ciclo_id" name="ciclo_id">
+            <option value="">Sem vínculo com ciclo</option>
+            {% for paciente in disponiveis %}
+              {% for ciclo in ciclos_por_paciente[paciente.id] %}
+              <option value="{{ ciclo.id }}">
+                {{ paciente.nome }} · {{ ciclo.regiao|capitalize }} · avaliação em {{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}
+              </option>
+              {% endfor %}
+            {% endfor %}
+          </select>
+          <small>Se escolher um ciclo, ele precisa ser do mesmo paciente e estar ativo.</small>
+        </div>
+
+        <div class="form-actions">
+          <button class="button button--primary" type="submit">Adicionar ao grupo</button>
+        </div>
+      </form>
+      {% else %}
+      <p class="panel-note">
+        Não há pacientes disponíveis para adicionar. Todos os que você acompanha já
+        estão neste grupo ou estão inativos.
+      </p>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    {% if historico %}
+    <section class="panel" style="margin-top:17px;">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Histórico</p>
+          <h2>Já passaram pelo grupo</h2>
+        </div>
+        <span class="panel-count">{{ historico|length }} registros</span>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Pacientes que já saíram do grupo</caption>
+          <thead>
+            <tr>
+              <th scope="col">Paciente</th>
+              <th scope="col">Entrada</th>
+              <th scope="col">Saída</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for participacao in historico %}
+            <tr>
+              <td>{{ participacao.paciente.nome }}</td>
+              <td class="muted-cell">{{ participacao.data_entrada.strftime("%d/%m/%Y") }}</td>
+              <td class="muted-cell">{{ participacao.data_saida.strftime("%d/%m/%Y") }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+{% endblock %}

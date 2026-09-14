@@ -1353,6 +1353,137 @@ def register_routes(app: Flask) -> None:
         )
         return redirect(url_for("listar_grupos"))
 
+    # ------------------------------------------------------------------
+    # Composição do grupo
+    # ------------------------------------------------------------------
+
+    def _pacientes_para_o_grupo(grupo):
+        """Quem o usuário pode adicionar: ativos, fora do grupo e acessíveis.
+
+        O fisioterapeuta só compõe com pacientes que já acompanha; o admin
+        monta o grupo com qualquer paciente ativo.
+        """
+        ja_no_grupo = {p.paciente_id for p in grupo.participacoes_ativas}
+        consulta = Patient.query.filter(Patient.ativo.is_(True))
+        if current_user.perfil != ADMIN_PROFILE:
+            consulta = consulta.filter(Patient.fisioterapeuta_id == current_user.id)
+        return [
+            p for p in consulta.order_by(Patient.nome).all() if p.id not in ja_no_grupo
+        ]
+
+    def _ciclos_ativos_do_paciente(paciente_id):
+        return (
+            TreatmentCycle.query.filter(
+                TreatmentCycle.paciente_id == paciente_id,
+                TreatmentCycle.status == "ATIVO",
+            )
+            .order_by(TreatmentCycle.data_avaliacao.desc())
+            .all()
+        )
+
+    @app.get("/grupos/<int:grupo_id>/pacientes")
+    @login_required
+    def composicao_do_grupo(grupo_id: int):
+        grupo = db.session.get(Group, grupo_id)
+        if grupo is None:
+            abort(404)
+        if not grupo.acessivel_por(current_user):
+            abort(403)
+
+        disponiveis = _pacientes_para_o_grupo(grupo)
+        return render_template(
+            "grupo_composicao.html",
+            grupo=grupo,
+            participacoes=grupo.participacoes_ativas,
+            historico=[p for p in grupo.participacoes if p.data_saida is not None],
+            disponiveis=disponiveis,
+            ciclos_por_paciente={
+                p.id: _ciclos_ativos_do_paciente(p.id) for p in disponiveis
+            },
+        )
+
+    @app.post("/grupos/<int:grupo_id>/pacientes")
+    @login_required
+    def adicionar_ao_grupo(grupo_id: int):
+        grupo = db.session.get(Group, grupo_id)
+        if grupo is None:
+            abort(404)
+        if not grupo.acessivel_por(current_user):
+            abort(403)
+
+        def voltar():
+            return redirect(url_for("composicao_do_grupo", grupo_id=grupo.id))
+
+        if not grupo.ativo:
+            flash("Grupo desativado não recebe pacientes. Reative-o antes.", "error")
+            return voltar()
+
+        paciente = db.session.get(Patient, int(request.form.get("paciente_id") or 0))
+        if paciente is None or not paciente.ativo:
+            flash("Selecione um paciente ativo.", "error")
+            return voltar()
+        if not paciente.acessivel_por(current_user):
+            abort(403)
+
+        if grupo.participacao_ativa_de(paciente.id) is not None:
+            flash(f"{paciente.nome} já está neste grupo.", "error")
+            return voltar()
+
+        if grupo.lotado:
+            flash(
+                f"O grupo está com a lotação máxima ({grupo.capacidade_max} pessoas).",
+                "error",
+            )
+            return voltar()
+
+        ciclo_id = request.form.get("ciclo_id", "").strip()
+        ciclo = None
+        if ciclo_id:
+            ciclo = db.session.get(TreatmentCycle, int(ciclo_id))
+            if (
+                ciclo is None
+                or ciclo.paciente_id != paciente.id
+                or ciclo.status != "ATIVO"
+            ):
+                flash("Selecione um ciclo ativo deste paciente.", "error")
+                return voltar()
+
+        db.session.add(
+            GroupPatient(
+                grupo_id=grupo.id,
+                paciente_id=paciente.id,
+                ciclo_id=ciclo.id if ciclo else None,
+                data_entrada=hoje(),
+            )
+        )
+        db.session.commit()
+        flash(f"{paciente.nome} entrou no grupo.", "success")
+        return voltar()
+
+    @app.post("/grupos/<int:grupo_id>/pacientes/<int:participacao_id>/saida")
+    @login_required
+    def registrar_saida_do_grupo(grupo_id: int, participacao_id: int):
+        """Marca a saída sem apagar a linha: o histórico de presença depende dela."""
+        grupo = db.session.get(Group, grupo_id)
+        if grupo is None:
+            abort(404)
+        if not grupo.acessivel_por(current_user):
+            abort(403)
+
+        participacao = db.session.get(GroupPatient, participacao_id)
+        if participacao is None or participacao.grupo_id != grupo.id:
+            abort(404)
+
+        if participacao.data_saida is not None:
+            flash("Este paciente já havia saído do grupo.", "error")
+            return redirect(url_for("composicao_do_grupo", grupo_id=grupo.id))
+
+        participacao.data_saida = hoje()
+        db.session.commit()
+        flash(f"{participacao.paciente.nome} saiu do grupo.", "success")
+        return redirect(url_for("composicao_do_grupo", grupo_id=grupo.id))
+
+
 
 def register_error_handlers(app: Flask) -> None:
     @app.errorhandler(403)
