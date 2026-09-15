@@ -13,6 +13,8 @@
     </header>
 
        <nav class="day-nav" aria-label="Navegação por dia">
+        <a class="button button--ghost button--small" href="{{ url_for('agenda_semanal', data=data_agenda.isoformat()) }}">Grade semanal</a>
+        <a class="button button--ghost button--small" href="{{ url_for('agenda_diaria', data=data_agenda.isoformat()) }}">Grade do dia</a>
       <a href="{{ url_for('agenda', data=dia_anterior.isoformat()) }}">← Dia anterior</a>
       <a href="{{ url_for('agenda') }}">Hoje</a>
       <a href="{{ url_for('agenda', data=dia_seguinte.isoformat()) }}">Próximo dia →</a>
@@ -73,7 +75,10 @@
               <td class="muted-cell">{{ item.fisioterapeuta.nome }}</td>
               <td>
                 <div class="table-actions">
-                  <form method="post" action="{{ url_for('alterar_status_agendamento', agendamento_id=item.id) }}">
+                <form method="post" action="{{ url_for('alterar_status_agendamento', agendamento_id=item.id) }}">
+                          {% if item.paciente_id %}
+                  <a href="{{ url_for('registrar_evolucao', agendamento_id=item.id) }}">Evolução</a>
+                            {% endif %}
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <label class="sr-only" for="status-{{ item.id }}">Status do agendamento</label>
                     <select id="status-{{ item.id }}" name="status">
@@ -85,10 +90,6 @@
                     </select>
                     <button class="button button--ghost button--small" type="submit">Salvar</button>
                   </form>
-                   {% if item.paciente_id %}
-                   <a href="{{ url_for('registrar_evolucao', agendamento_id=item.id) }}">Evolução</a>
-                    {% endif %}
-                
                 </div>
               </td>
             </tr>

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Grade do dia · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar no-print">
+      <div>
+        <p class="breadcrumb">Agenda <span>/</span> Grade do dia</p>
+        <h1>{{ data_agenda.strftime("%d/%m/%Y") }}</h1>
+      </div>
+      <button class="button button--primary" type="button" onclick="window.print()">Imprimir</button>
+    </header>
+
+    <form method="get" class="day-nav no-print">
+      <a class="button button--ghost button--small"
+         href="{{ url_for('agenda_diaria', data=dia_anterior.isoformat()) }}">← Dia anterior</a>
+      <a class="button button--ghost button--small" href="{{ url_for('agenda_diaria') }}">Hoje</a>
+      <a class="button button--ghost button--small"
+         href="{{ url_for('agenda_diaria', data=dia_seguinte.isoformat()) }}">Próximo dia →</a>
+
+      <label class="sr-only" for="data">Data</label>
+      <input id="data" name="data" type="date" value="{{ data_agenda.isoformat() }}"
+             style="padding:8px 12px; border:1px solid var(--line); border-radius:9px;">
+      <button class="button button--ghost button--small" type="submit">Ir</button>
+    </form>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">{{ nome_do_dia }}</p>
+          <h2>{{ data_agenda.strftime("%d/%m/%Y") }}</h2>
+        </div>
+        <span class="panel-count no-print">{{ total }} atendimento{{ "s" if total != 1 }}</span>
+      </div>
+
+      {% if profissionais %}
+      <div class="table-wrap">
+        <table class="grade">
+          <caption class="sr-only">Grade de atendimentos do dia por profissional</caption>
+          <thead>
+            <tr>
+              <th scope="col">Horário</th>
+              {% for profissional in profissionais %}
+              <th scope="col">{{ profissional.nome.split()[0] }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for horario in horarios %}
+            <tr>
+              <th scope="row" class="grade-hora">{{ horario }}</th>
+              {% for profissional in profissionais %}
+              {% set itens = grade[horario].get(profissional.id, []) %}
+              <td class="grade-celula{{ ' grade-celula--vazia' if not itens }}">
+                {% for item in itens %}
+                <span class="grade-item grade-item--{{ item.tipo|lower }}">
+                  {% if item.tipo == "GRUPO" %}
+                    {{ item.grupo.nome if item.grupo else "Grupo" }}
+                  {% else %}
+                    {{ item.paciente.nome if item.paciente else "—" }}
+                    {% if item.tipo == "AVALIACAO" %}<small>triagem</small>{% endif %}
+                  {% endif %}
+                </span>
+                {% endfor %}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <div class="empty-state__icon" aria-hidden="true">◷</div>
+        <h3>Nenhum profissional ativo</h3>
+        <p>Cadastre profissionais para montar a grade do dia.</p>
+      </div>
+      {% endif %}
+
+      <p class="panel-note print-only">
+        {{ nome_do_dia }}, {{ data_agenda.strftime("%d/%m/%Y") }} — FisioBase
+      </p>
+    </section>
+{% endblock %}

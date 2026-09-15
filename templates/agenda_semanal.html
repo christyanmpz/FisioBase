@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Grade semanal · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar no-print">
+      <div>
+        <p class="breadcrumb">Agenda <span>/</span> Grade semanal</p>
+        <h1>{{ profissional.nome }}</h1>
+      </div>
+      <button class="button button--primary" type="button" onclick="window.print()">Imprimir</button>
+    </header>
+
+    <form method="get" class="day-nav no-print">
+      <a class="button button--ghost button--small"
+         href="{{ url_for('agenda_semanal', data=semana_anterior.isoformat(), fisioterapeuta_id=profissional.id) }}">← Semana anterior</a>
+      <a class="button button--ghost button--small"
+         href="{{ url_for('agenda_semanal', fisioterapeuta_id=profissional.id) }}">Esta semana</a>
+      <a class="button button--ghost button--small"
+         href="{{ url_for('agenda_semanal', data=semana_seguinte.isoformat(), fisioterapeuta_id=profissional.id) }}">Próxima semana →</a>
+
+      {% if current_user.perfil == "ADMIN" %}
+      <label class="sr-only" for="fisioterapeuta_id">Profissional</label>
+      <select id="fisioterapeuta_id" name="fisioterapeuta_id"
+              style="padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--white);">
+        {% for opcao in profissionais %}
+        <option value="{{ opcao.id }}" {% if opcao.id == profissional.id %}selected{% endif %}>{{ opcao.nome }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+
+      <label class="sr-only" for="data">Semana</label>
+      <input id="data" name="data" type="date" value="{{ dias[0].isoformat() }}"
+             style="padding:8px 12px; border:1px solid var(--line); border-radius:9px;">
+      <button class="button button--ghost button--small" type="submit">Ir</button>
+    </form>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Semana de {{ dias[0].strftime("%d/%m") }} a {{ dias[-1].strftime("%d/%m/%Y") }}</p>
+          <h2>Agenda de {{ profissional.nome }}</h2>
+        </div>
+        <span class="panel-count no-print">{{ total }} atendimento{{ "s" if total != 1 }}</span>
+      </div>
+
+      <div class="table-wrap">
+        <table class="grade">
+          <caption class="sr-only">Grade semanal de atendimentos</caption>
+          <thead>
+            <tr>
+              <th scope="col">Horário</th>
+              {% for dia in dias %}
+              <th scope="col">
+                {{ nomes_dos_dias[loop.index0].split("-")[0] }}<br>
+                <span class="grade-data">{{ dia.strftime("%d/%m") }}</span>
+              </th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for horario in horarios %}
+            <tr>
+              <th scope="row" class="grade-hora">{{ horario }}</th>
+              {% for dia in dias %}
+              {% set itens = grade[horario].get(dia.isoformat(), []) %}
+              <td class="grade-celula{{ ' grade-celula--vazia' if not itens }}">
+                {% for item in itens %}
+                <span class="grade-item grade-item--{{ item.tipo|lower }}">
+                  {% if item.tipo == "GRUPO" %}
+                    {{ item.grupo.nome if item.grupo else "Grupo" }}
+                  {% else %}
+                    {{ item.paciente.nome if item.paciente else "—" }}
+                    {% if item.tipo == "AVALIACAO" %}<small>triagem</small>{% endif %}
+                  {% endif %}
+                </span>
+                {% endfor %}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="panel-note print-only">
+        Impresso em {{ dias[0].strftime("%d/%m/%Y") }} — FisioBase
+      </p>
+    </section>
+{% endblock %}

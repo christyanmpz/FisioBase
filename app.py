@@ -826,6 +826,95 @@ def register_routes(app: Flask) -> None:
             dia_seguinte=data_agenda + timedelta(days=1),
         )
 
+    def _segunda_da_semana(data_base):
+        return data_base - timedelta(days=data_base.weekday())
+
+    def _grade_de(agendamentos, chave):
+        """Monta {horario: {chave: [agendamentos]}} para desenhar a tabela."""
+        grade = {rotulo: {} for rotulo in HORARIOS}
+        for item in agendamentos:
+            rotulo = item.hora.strftime("%H:%M")
+            if rotulo not in grade:
+                continue
+            grade[rotulo].setdefault(chave(item), []).append(item)
+        return grade
+
+    @app.get("/agenda/semana")
+    @login_required
+    def agenda_semanal():
+        """Grade semanal de um profissional, no formato da planilha da clínica."""
+        try:
+            base = date.fromisoformat(request.args.get("data", "").strip())
+        except ValueError:
+            base = hoje()
+        segunda = _segunda_da_semana(base)
+        dias = [segunda + timedelta(days=n) for n in DIAS_DE_ATENDIMENTO]
+
+        profissionais = _fisioterapeutas_ativos()
+        escolhido = current_user
+        if current_user.perfil == ADMIN_PROFILE:
+            pedido = request.args.get("fisioterapeuta_id", "").strip()
+            escolhido = db.session.get(User, int(pedido)) if pedido else None
+            if escolhido is None:
+                escolhido = profissionais[0] if profissionais else current_user
+
+        agendamentos = (
+            Appointment.query.filter(
+                Appointment.fisioterapeuta_id == escolhido.id,
+                Appointment.data >= dias[0],
+                Appointment.data <= dias[-1],
+                Appointment.status != "CANCELADO",
+            )
+            .order_by(Appointment.data, Appointment.hora)
+            .all()
+        )
+
+        return render_template(
+            "agenda_semanal.html",
+            grade=_grade_de(agendamentos, lambda i: i.data.isoformat()),
+            horarios=HORARIOS,
+            dias=dias,
+            nomes_dos_dias=[WEEKDAY_NAMES[d.weekday()] for d in dias],
+            profissional=escolhido,
+            profissionais=profissionais,
+            semana_anterior=segunda - timedelta(days=7),
+            semana_seguinte=segunda + timedelta(days=7),
+            total=len(agendamentos),
+        )
+
+    @app.get("/agenda/dia")
+    @login_required
+    def agenda_diaria():
+        """Grade do dia com todos os profissionais lado a lado."""
+        try:
+            data_agenda = date.fromisoformat(request.args.get("data", "").strip())
+        except ValueError:
+            data_agenda = hoje()
+
+        profissionais = _fisioterapeutas_ativos()
+        if current_user.perfil != ADMIN_PROFILE:
+            profissionais = [p for p in profissionais if p.id == current_user.id]
+
+        consulta = Appointment.query.filter(
+            Appointment.data == data_agenda, Appointment.status != "CANCELADO"
+        )
+        if current_user.perfil != ADMIN_PROFILE:
+            consulta = consulta.filter(Appointment.fisioterapeuta_id == current_user.id)
+
+        agendamentos = consulta.order_by(Appointment.hora).all()
+
+        return render_template(
+            "agenda_diaria.html",
+            grade=_grade_de(agendamentos, lambda i: i.fisioterapeuta_id),
+            horarios=HORARIOS,
+            profissionais=profissionais,
+            data_agenda=data_agenda,
+            nome_do_dia=WEEKDAY_NAMES[data_agenda.weekday()],
+            dia_anterior=data_agenda - timedelta(days=1),
+            dia_seguinte=data_agenda + timedelta(days=1),
+            total=len(agendamentos),
+        )
+
     @app.route("/agenda/novo", methods=["GET", "POST"])
     @login_required
     def novo_agendamento():
