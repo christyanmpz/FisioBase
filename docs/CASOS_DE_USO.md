@@ -27,6 +27,10 @@
      │  Admin.  │───────┼──►│      relatórios       │     │
      │          │       │   │ UC11 Gerir profissionais    │
      └──────────┘       │   │ UC12 Trocar responsável│    │
+                        │   │ UC13 Gerar sessões    │     │
+                        │   │ UC14 Emitir cartão    │     │
+                        │   │ UC15 Imprimir grades  │     │
+                        │   │ UC16 Imprimir prontuário    │
                         │   └───────────────────────┘     │
                         └─────────────────────────────────┘
 
@@ -184,6 +188,59 @@ registro. Se o paciente voltar, entra uma participação nova.
 1. O admin escolhe outro profissional ativo.
 2. O sistema atualiza o responsável pelo ciclo.
 
+## UC13 — Gerar as sessões do ciclo
+
+**Ator:** ambos.
+**Pré-condição:** ciclo ativo com sessões a agendar.
+
+**Fluxo principal**
+1. O usuário escolhe a data da primeira sessão, o horário e os dias da semana.
+2. O sistema gera as datas, pulando fim de semana e feriado cadastrado.
+3. Antes de gravar, verifica o limite de 2 pacientes por horário em todas as
+   datas geradas.
+4. Os agendamentos são criados e o sistema informa quais datas foram puladas.
+
+**Fluxos alternativos**
+- Alguma data com o horário cheio: nada é gravado e o usuário escolhe outro
+  horário ou outros dias.
+- Quantidade acima do que falta no ciclo: recusada, com o máximo informado.
+
+## UC14 — Emitir o cartão do paciente
+
+**Ator:** ambos.
+
+**Fluxo principal**
+1. O usuário abre o cartão do ciclo.
+2. O sistema lista as datas numeradas, com dia da semana e horário.
+3. O cartão é impresso e entregue ao paciente.
+
+**Regra:** o cartão é montado a partir da agenda no momento da emissão, então
+sempre reflete eventuais remarcações.
+
+## UC15 — Imprimir as grades da semana e do dia
+
+**Ator:** ambos.
+
+**Fluxo principal**
+1. O usuário escolhe a semana ou o dia.
+2. O sistema monta a grade no formato das planilhas da clínica.
+3. A impressão sai sem menu e sem botões, apenas a grade.
+
+**Regra:** o fisioterapeuta imprime a própria grade; o admin escolhe o
+profissional ou vê todos no dia.
+
+## UC16 — Imprimir o prontuário
+
+**Ator:** ambos.
+
+**Fluxo principal**
+1. O usuário abre o prontuário do paciente.
+2. O sistema reúne identificação, tratamentos e todas as evoluções em ordem.
+3. A folha é impressa e arquivada.
+
+**Regra:** sessões realizadas sem evolução aparecem marcadas, para o
+profissional completar antes de arquivar.
+
 ## Matriz de permissões
 
 | Caso de uso | Administrador | Fisioterapeuta |
@@ -200,3 +257,7 @@ registro. Se o paciente voltar, entra uma participação nova.
 | UC10 Relatórios | clínica inteira | apenas os seus números |
 | UC11 Gerir profissionais | sim | não |
 | UC12 Trocar responsável | sim | não |
+| UC13 Gerar sessões | todos os ciclos | apenas os seus |
+| UC14 Emitir cartão | todos | apenas os seus |
+| UC15 Imprimir grades | qualquer profissional | apenas a sua |
+| UC16 Imprimir prontuário | todos | apenas os seus |

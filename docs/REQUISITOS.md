@@ -3,6 +3,10 @@
 Levantados junto ao setor de fisioterapia, a partir da rotina atual em fichas
 de papel e planilhas Excel.
 
+Dos dez itens levantados pelo setor, todos foram atendidos. Os requisitos que
+seguem como trabalho futuro exigem estrutura adicional no banco e foram
+conscientemente deixados para uma próxima etapa.
+
 ## Requisitos funcionais
 
 | Código | Requisito | Situação |
@@ -19,11 +23,14 @@ de papel e planilhas Excel.
 | RF10 | Grupos terapêuticos com horário fixo semanal e capacidade | Implementado |
 | RF11 | Composição do grupo com histórico de entrada e saída | Implementado |
 | RF12 | Relatório mensal com gráficos de presença, horário e região | Implementado |
+| RF19 | Registro de falta justificada com o motivo da ausência | Implementado |
+| RF20 | Impressão do prontuário completo e da folha de evolução | Implementado |
+| RF21 | Paginação e busca com sugestões na lista de pacientes | Implementado |
 | RF13 | Lista de presença das sessões de grupo | Trabalho futuro |
 | RF14 | Disponibilidade do profissional: triagens fixas, reunião e horários fechados | Trabalho futuro |
-| RF15 | Geração automática das datas do ciclo, pulando feriados | Trabalho futuro |
-| RF16 | Impressão do cartão do paciente com as datas agendadas | Trabalho futuro |
-| RF17 | Impressão da grade semanal por profissional e da grade diária do setor | Trabalho futuro |
+| RF15 | Geração automática das datas do ciclo, pulando feriados | Implementado |
+| RF16 | Impressão do cartão do paciente com as datas agendadas | Implementado |
+| RF17 | Impressão da grade semanal por profissional e da grade diária do setor | Implementado |
 | RF18 | Reativação do cadastro com histórico de tratamentos anteriores | Trabalho futuro |
 
 ## Requisitos não funcionais
@@ -38,6 +45,8 @@ de papel e planilhas Excel.
 | RNF06 | Datas devem respeitar o fuso do Brasil, mesmo com servidor em UTC | Função `hoje()` com `America/Sao_Paulo` |
 | RNF07 | O sistema deve ser acessível pelo navegador, sem instalação | Aplicação web publicada na Vercel |
 | RNF08 | A interface deve funcionar em tela pequena | Layout responsivo, com barra lateral adaptável |
+| RNF11 | Listas longas não podem degradar a navegação | Paginação de 20 por página e busca com sugestões |
+| RNF12 | As folhas impressas devem sair sem os elementos de navegação | Folha de estilo específica para impressão |
 | RNF09 | As regras de negócio devem ser verificáveis automaticamente | 144 testes automatizados com pytest |
 | RNF10 | Alterações não podem quebrar o que já funciona | Testes rodam antes de cada publicação |
 
@@ -59,3 +68,6 @@ de papel e planilhas Excel.
 | RN12 | O mesmo profissional não pode conduzir dois grupos em horários sobrepostos |
 | RN13 | Pacientes e grupos são desativados, nunca excluídos |
 | RN14 | A saída do grupo preserva o registro, para manter o histórico de presença |
+| RN15 | Falta justificada exige o motivo e conta como falta nos números |
+| RN16 | A geração automática pula fim de semana e feriado cadastrado |
+| RN17 | A geração respeita o total de sessões do ciclo e o limite por horário |

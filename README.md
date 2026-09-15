@@ -52,9 +52,17 @@ coluna.
 fora do expediente, fim de semana e data passada, e respeita o limite de 2
 pacientes por profissional no mesmo horário.
 
-**4. Registrar presença.** Na agenda, altere a situação do atendimento para
-*Realizado*, *Faltou* ou *Cancelado* e clique em *Salvar*. Presença e falta só
-são aceitas a partir do dia da sessão.
+**3.1. Gerar as sessões e o cartão.** Em *Gerenciar ciclos*, o botão *Gerar
+sessões* cria de uma vez as datas do ciclo: escolha o dia da primeira sessão,
+o horário e os dias da semana. O sistema pula fim de semana e feriado, avisa
+quais datas foram puladas e leva ao *Cartão*, pronto para imprimir e entregar
+ao paciente.
+
+**4. Registrar presença.** Na agenda, altere a situação do atendimento e clique
+em *Salvar*. Há três formas de ausência: *Faltou*, *Falta justificada*, que pede
+o motivo, e *Cancelado*. A justificada conta como falta nos números, mas aparece
+separada no relatório. Presença e falta só são aceitas a partir do dia da
+sessão.
 
 **5. Registrar a evolução clínica.** Na ficha do paciente, coluna *Evolução*, o
 link muda conforme a situação:
@@ -83,6 +91,26 @@ de participantes. A saída não apaga o registro: preenche a data de saída e
 mantém o histórico, que a lista de presença vai precisar.
 
 Grupos não são excluídos, apenas desativados.
+
+### Impressões
+
+Quatro documentos saem prontos para papel, sem o menu e sem os botões:
+
+| Onde | O que sai |
+| --- | --- |
+| Agenda → *Grade semanal* | A semana de um profissional, no formato da planilha da clínica |
+| Agenda → *Grade do dia* | Todos os profissionais lado a lado, por horário |
+| Ciclos → *Cartão* | As datas numeradas do ciclo, com espaço para visto |
+| Ficha → *Imprimir prontuário* | Identificação, tratamentos e todas as evoluções |
+
+A folha de evolução de uma sessão também sai pela tela da própria evolução.
+
+### Feriados
+
+A geração automática pula os feriados cadastrados na tabela `feriados`. Os
+nacionais de 2026 e 2027 são carregados por script; municipais e pontos
+facultativos são acrescentados no mesmo formato, com tipo `MUNICIPAL` ou
+`FACULTATIVO`.
 
 ### Relatórios
 
@@ -146,7 +174,7 @@ A aplicação sobe em `http://localhost:5000`, ou na porta definida em `PORT`.
 python -m pytest -q
 ```
 
-São **144 testes**, que rodam em SQLite na memória. Não abrem conexão com o
+São **207 testes**, que rodam em SQLite na memória. Não abrem conexão com o
 Supabase e não tocam em dado real.
 
 | Arquivo | Testes | Cobre |
@@ -162,6 +190,11 @@ Supabase e não tocam em dado real.
 | `test_grupos.py` | 28 | CRUD de grupos, conflito de horário, escopo |
 | `test_grupos_composicao.py` | 20 | Entrada, saída, capacidade, vínculo com ciclo |
 | `test_dashboards.py` | 9 | Números e escopo dos painéis |
+| `test_grades.py` | 12 | Grades semanal e diária, escopo e impressão |
+| `test_impressao.py` | 10 | Prontuário completo e folha de evolução |
+| `test_falta_justificada.py` | 10 | Registro do motivo e efeito nos números |
+| `test_paginacao.py` | 9 | Páginas, total e busca preservada |
+| `test_cartao.py` | 18 | Geração das sessões, feriados e cartão |
 
 ## Banco de dados
 
@@ -242,7 +275,12 @@ das 21h a agenda abriria no dia seguinte.
 | GET/POST | `/pacientes/<id>/ciclos/novo` | Abertura de ciclo |
 | POST | `/ciclos/<id>/encerrar` | Encerramento |
 | POST | `/ciclos/<id>/responsavel` | Troca de responsável (admin) |
+| GET/POST | `/ciclos/<id>/sessoes` | Geração automática das sessões |
+| GET | `/ciclos/<id>/cartao` | Cartão do paciente para impressão |
+| GET | `/pacientes/<id>/prontuario` | Prontuário completo para impressão |
 | GET | `/agenda` | Agenda do dia |
+| GET | `/agenda/semana` | Grade semanal por profissional, para impressão |
+| GET | `/agenda/dia` | Grade do dia com todos os profissionais |
 | GET/POST | `/agenda/novo` | Novo agendamento |
 | POST | `/agendamentos/<id>/status` | Presença, falta, cancelamento |
 | GET/POST | `/agendamentos/<id>/evolucao` | Evolução clínica |
@@ -272,11 +310,11 @@ FisioBase/
 ├── requirements.txt
 ├── pytest.ini
 ├── docs/                  # documentação do Projeto Integrador
-├── templates/             # 20 templates Jinja
+├── templates/             # 24 templates Jinja
 ├── static/
 │   ├── css/style.css
 │   └── js/app.js
-└── tests/                 # 144 testes
+└── tests/                 # 207 testes
 ```
 
 ## Documentação do projeto
@@ -294,8 +332,8 @@ FisioBase/
 - Os campos `falhas_login` e `bloqueado_ate` existem na tabela de usuários, mas
   o bloqueio por tentativas ainda não é aplicado.
 - Não há troca de senha pelo próprio usuário nem redefinição pelo admin.
-- A lista de pacientes não tem paginação.
+- Não há tela para cadastrar feriados: eles são inseridos direto no banco.
 - Trabalho futuro mapeado com a clínica: disponibilidade do profissional
-  (triagens fixas, reunião e horários fechados), geração automática das sessões
-  com impressão do cartão, lista de presença dos grupos, grades semanal e diária
-  para impressão, e registro de alta com histórico e reativação do cadastro.
+  (triagens fixas, reunião e horários fechados), lista de presença das sessões
+  de grupo, e reativação do cadastro com o histórico dos tratamentos
+  anteriores.

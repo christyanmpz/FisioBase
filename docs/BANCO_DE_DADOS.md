@@ -127,7 +127,10 @@ mesmo tempo, por exemplo joelho e coluna.
 | `data`, `hora` | date, time | |
 | `duracao_min` | integer | 30 individual, 60 em grupo |
 | `numero_sessao` | integer | Conta apenas sessões realizadas |
-| `status` | varchar(20) | `AGENDADO`, `CONFIRMADO`, `REALIZADO`, `CANCELADO` ou `FALTOU` |
+| `status` | varchar(20) | `AGENDADO`, `CONFIRMADO`, `REALIZADO`, `CANCELADO`, `FALTOU` ou `FALTA_JUSTIFICADA` |
+
+A falta justificada guarda o motivo no campo `observacoes` do próprio
+agendamento, em vez de uma coluna nova.
 
 **Restrição `chk_ag_alvo`:** o agendamento tem paciente **ou** grupo, nunca os
 dois e nunca nenhum.
@@ -157,10 +160,17 @@ Lista de chamada das sessões de grupo. Restrição `uq_presenca` impede o mesmo
 paciente duas vezes no mesmo agendamento. O status aceita `PRESENTE`, `FALTA`
 ou `FALTA_JUSTIFICADA`.
 
-### feriados e cartoes
+### feriados
 
-Preparadas para a geração automática das datas do ciclo, pulando feriados, e
-para a impressão do cartão do paciente. Ainda não utilizadas pela aplicação.
+Datas que a geração automática pula. O campo `tipo` distingue `NACIONAL`,
+`MUNICIPAL` e `FACULTATIVO`. Os nacionais de 2026 e 2027 são carregados por
+script; os demais são inseridos manualmente, porque variam por cidade.
+
+### cartoes
+
+Registra a emissão do cartão de um ciclo: quem gerou e quando. O cartão em si é
+montado na hora, a partir dos agendamentos, então ele sempre reflete a agenda
+atual mesmo que uma sessão seja remarcada.
 
 ## Integridade
 
