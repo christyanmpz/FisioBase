@@ -1869,3 +1869,51 @@ tbody tr:last-child td {
 .campo-aviso {
   color: #8b3030;
 }
+
+
+/* Paginação da lista de pacientes. */
+.paginacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  margin-top: 18px;
+}
+
+.paginacao-paginas {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.paginacao-paginas a,
+.paginacao-atual {
+  display: inline-block;
+  min-width: 30px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  text-align: center;
+}
+
+.paginacao-paginas a {
+  color: #3f858e;
+  text-decoration: none;
+}
+
+.paginacao-paginas a:hover {
+  background: #e6f2f1;
+}
+
+.paginacao-atual {
+  color: var(--white);
+  background: var(--navy-deep);
+}
+
+.paginacao--inativo {
+  opacity: 0.45;
+  pointer-events: none;
+}

@@ -61,6 +61,8 @@ REGIOES = ("OMBRO", "JOELHO", "COLUNA", "OUTRO")
 MODALIDADES = ("INDIVIDUAL", "GRUPO")
 STATUS_ENCERRAMENTO = ("CONCLUIDO", "ALTA", "ABANDONO")
 LIMITE_POR_HORARIO = 2
+# Quantos pacientes por página na listagem.
+PACIENTES_POR_PAGINA = 20
 STATUS_AGENDAMENTO = (
     "AGENDADO",
     "CONFIRMADO",
@@ -493,8 +495,21 @@ def register_routes(app: Flask) -> None:
                 filtros.append(Patient.cpf.ilike(f"%{somente_digitos}%"))
             consulta = consulta.filter(db.or_(*filtros))
 
-        pacientes = consulta.order_by(Patient.nome).all()
-        return render_template("pacientes_lista.html", pacientes=pacientes, busca=busca)
+        try:
+            pagina = max(int(request.args.get("pagina", 1)), 1)
+        except ValueError:
+            pagina = 1
+
+        paginacao = consulta.order_by(Patient.nome).paginate(
+            page=pagina, per_page=PACIENTES_POR_PAGINA, error_out=False
+        )
+
+        return render_template(
+            "pacientes_lista.html",
+            pacientes=paginacao.items,
+            paginacao=paginacao,
+            busca=busca,
+        )
 
     @app.get("/pacientes/<int:paciente_id>")
     @login_required

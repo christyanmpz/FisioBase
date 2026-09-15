@@ -28,7 +28,12 @@
           <p class="eyebrow eyebrow--muted">Cadastro clínico</p>
           <h2>Pacientes cadastrados</h2>
         </div>
-        <span class="panel-count">{{ pacientes|length }} registros</span>
+        <span class="panel-count">
+          {{ paginacao.total }} registro{{ "s" if paginacao.total != 1 }}
+          {% if paginacao.pages > 1 %}
+            · página {{ paginacao.page }} de {{ paginacao.pages }}
+          {% endif %}
+        </span>
       </div>
 
       {% if pacientes %}
@@ -79,6 +84,38 @@
           </tbody>
         </table>
       </div>
+
+      {% if paginacao.pages > 1 %}
+      <nav class="paginacao" aria-label="Paginação dos pacientes">
+        {% if paginacao.has_prev %}
+        <a class="button button--ghost button--small"
+           href="{{ url_for('listar_pacientes', pagina=paginacao.prev_num, q=busca or None) }}">← Anterior</a>
+        {% else %}
+        <span class="button button--ghost button--small paginacao--inativo">← Anterior</span>
+        {% endif %}
+
+        <span class="paginacao-paginas">
+          {% for numero in paginacao.iter_pages(left_edge=1, left_current=1, right_current=2, right_edge=1) %}
+            {% if numero %}
+              {% if numero == paginacao.page %}
+              <strong class="paginacao-atual">{{ numero }}</strong>
+              {% else %}
+              <a href="{{ url_for('listar_pacientes', pagina=numero, q=busca or None) }}">{{ numero }}</a>
+              {% endif %}
+            {% else %}
+            <span aria-hidden="true">…</span>
+            {% endif %}
+          {% endfor %}
+        </span>
+
+        {% if paginacao.has_next %}
+        <a class="button button--ghost button--small"
+           href="{{ url_for('listar_pacientes', pagina=paginacao.next_num, q=busca or None) }}">Próxima →</a>
+        {% else %}
+        <span class="button button--ghost button--small paginacao--inativo">Próxima →</span>
+        {% endif %}
+      </nav>
+      {% endif %}
       {% else %}
             <div class="empty-state">
         <div class="empty-state__icon" aria-hidden="true">+</div>
