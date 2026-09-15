@@ -603,6 +603,7 @@ h3,
 
 .nav-item {
   display: flex;
+  transition: color 0.15s ease, background 0.15s ease;
   align-items: center;
   width: 100%;
   gap: 11px;
@@ -616,7 +617,10 @@ h3,
   text-decoration: none;
 }
 
+/* O botão de sair é um <button>, não um <a>: sem ele no seletor, ficava
+   sem realce ao passar o mouse. */
 a.nav-item:not(.nav-item--disabled):hover,
+button.nav-item:hover,
 .nav-item--active {
   color: var(--white);
   background: rgba(129, 216, 201, 0.14);
@@ -667,6 +671,18 @@ a.nav-item:not(.nav-item--disabled):hover,
 
 .nav-item--logout {
   cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+/* Sair da conta em tom de alerta ao passar o mouse, para não ser clicado
+   sem querer. */
+.nav-item--logout:hover {
+  color: #ffd9d3;
+  background: rgba(214, 111, 95, 0.18);
+}
+
+.nav-item--logout:hover .nav-icon {
+  color: #ffb3a5;
 }
 
 .main-content {
