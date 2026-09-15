@@ -192,10 +192,30 @@ def test_agendar_para_hoje_continua_permitido(client, app, monkeypatch):
     assert contar(app) == 1
 
 
-def test_formulario_tem_campo_de_busca_de_paciente(client, app):
+def test_formulario_tem_caixa_de_busca_de_paciente(client, app):
     criar_paciente(app)
     fazer_login(client, "fisio@teste.com", SENHA_FISIO)
 
     corpo = client.get("/agenda/novo").get_data(as_text=True)
 
-    assert 'data-busca-de="paciente_id"' in corpo
+    assert 'data-autocomplete="paciente_id"' in corpo
+    assert '<datalist id="lista-de-pacientes">' in corpo
+
+
+def test_agendamento_sem_paciente_e_recusado(client, app):
+    """A caixa de busca envia um id escondido; texto solto não cria nada."""
+    criar_paciente(app)
+    fazer_login(client, "fisio@teste.com", SENHA_FISIO)
+
+    resposta = client.post(
+        "/agenda/novo",
+        data={
+            "paciente_id": "",
+            "tipo": "AVALIACAO",
+            "data": DIA_UTIL.isoformat(),
+            "hora": "09:00",
+        },
+    )
+
+    assert resposta.status_code == 400
+    assert contar(app) == 0

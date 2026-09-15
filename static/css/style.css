@@ -1861,11 +1861,11 @@ tbody tr:last-child td {
 }
 
 
-/* Campo de busca que filtra um select longo. */
-.campo-busca {
-  margin-bottom: 7px;
+/* Caixa única de busca de paciente. */
+.field [hidden] {
+  display: none;
 }
 
-.field .campo-busca[hidden] {
-  display: none;
+.campo-aviso {
+  color: #8b3030;
 }

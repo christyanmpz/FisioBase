@@ -386,7 +386,7 @@ def test_participacao_de_outro_grupo_da_404(client, app):
     assert len(ativas(app, id_grupo)) == 1
 
 
-def test_formulario_tem_campo_de_busca_de_paciente(client, app):
+def test_formulario_tem_caixa_de_busca_de_paciente(client, app):
     id_fisio = id_do_usuario(app, "fisio@teste.com")
     id_grupo = criar_grupo(app, id_fisio)
     criar_paciente(app, id_fisio)
@@ -394,7 +394,8 @@ def test_formulario_tem_campo_de_busca_de_paciente(client, app):
     fazer_login(client, "fisio@teste.com", SENHA_FISIO)
     corpo = client.get(f"/grupos/{id_grupo}/pacientes").get_data(as_text=True)
 
-    assert 'data-busca-de="paciente_id"' in corpo
+    assert 'data-autocomplete="paciente_id"' in corpo
+    assert '<datalist id="lista-de-pacientes">' in corpo
 
 
 def test_ciclos_do_formulario_sabem_de_quem_sao(client, app):

@@ -122,15 +122,25 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <div class="field">
-          <label for="paciente_id">Paciente</label>
-          <input type="search" class="campo-busca" data-busca-de="paciente_id" hidden
-                 placeholder="Digite para filtrar pelo nome" autocomplete="off">
-          <select id="paciente_id" name="paciente_id" required>
+          <label for="paciente_busca">Paciente</label>
+          <input id="paciente_busca" type="text" list="lista-de-pacientes" hidden
+                 data-autocomplete="paciente_id" data-select-original="paciente_select"
+                 placeholder="Digite o nome do paciente" autocomplete="off">
+          <datalist id="lista-de-pacientes">
+            {% for paciente in disponiveis %}
+            <option value="{{ paciente.nome }}"></option>
+            {% endfor %}
+          </datalist>
+          <small data-autocomplete-aviso hidden class="campo-aviso">
+            Nenhum paciente com esse nome. Escolha um da lista.
+          </small>
+          <select id="paciente_select" required>
             <option value="">Selecione</option>
             {% for paciente in disponiveis %}
             <option value="{{ paciente.id }}">{{ paciente.nome }}</option>
             {% endfor %}
           </select>
+          <input type="hidden" id="paciente_id" name="paciente_id">
         </div>
 
         <div class="field">
@@ -156,8 +166,14 @@
       <script>
         (function () {
           const paciente = document.getElementById("paciente_id");
+          const select = document.getElementById("paciente_select");
           const ciclo = document.getElementById("ciclo_id");
-          if (!paciente || !ciclo) return;
+          if (!paciente || !ciclo || !select) return;
+
+          select.addEventListener("change", function () {
+            paciente.value = select.value;
+            paciente.dispatchEvent(new Event("change", { bubbles: true }));
+          });
           const opcoes = Array.from(ciclo.options);
 
           function filtrarCiclos() {

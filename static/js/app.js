@@ -39,36 +39,39 @@ document.addEventListener("DOMContentLoaded", () => {
     select.addEventListener("change", atualizar);
   });
 
-  // Busca dentro de um select longo: o campo filtra as opções pelo texto.
-  // Sem JavaScript, o select continua completo e utilizável.
-  document.querySelectorAll("[data-busca-de]").forEach((busca) => {
-    const select = document.getElementById(busca.dataset.buscaDe);
-    if (!select) return;
+  // Caixa única de busca: o usuário digita e escolhe na lista de sugestões.
+  // O campo escondido guarda o id; sem JavaScript, o select continua visível.
+  document.querySelectorAll("[data-autocomplete]").forEach((caixa) => {
+    const destino = document.getElementById(caixa.dataset.autocomplete);
+    const select = document.getElementById(caixa.dataset.selectOriginal);
+    if (!destino || !select) return;
 
-    busca.hidden = false;
+    const campo = caixa.closest(".field") || caixa.parentElement;
+    const aviso = campo.querySelector("[data-autocomplete-aviso]");
+    select.hidden = true;
+    select.removeAttribute("required");
+    caixa.hidden = false;
 
-    const filtrar = () => {
-      const termo = busca.value.trim().toLowerCase();
-      let visiveis = 0;
+    const porTexto = new Map();
+    Array.from(select.options).forEach((opcao) => {
+      if (opcao.value) porTexto.set(opcao.text.trim(), opcao.value);
+    });
 
-      Array.from(select.options).forEach((opcao) => {
-        if (!opcao.value) return;
-        const combina = !termo || opcao.text.toLowerCase().includes(termo);
-        opcao.hidden = !combina;
-        opcao.disabled = !combina;
-        if (combina) visiveis += 1;
-      });
-
-      const escolhida = select.selectedOptions[0];
-      if (escolhida && escolhida.hidden) select.value = "";
-
-      busca.setAttribute(
-        "aria-label",
-        visiveis === 1 ? "1 resultado" : visiveis + " resultados"
+    const resolver = () => {
+      const id = porTexto.get(caixa.value.trim()) || "";
+      const mudou = destino.value !== id;
+      destino.value = id;
+      if (aviso) {
+        aviso.hidden = !caixa.value.trim() || Boolean(id);
+      }
+      caixa.setCustomValidity(
+        !caixa.value.trim() || id ? "" : "Escolha um nome da lista."
       );
+      if (mudou) destino.dispatchEvent(new Event("change", { bubbles: true }));
     };
 
-    busca.addEventListener("input", filtrar);
-    filtrar();
+    caixa.addEventListener("input", resolver);
+    caixa.addEventListener("change", resolver);
+    resolver();
   });
 });
