@@ -61,7 +61,42 @@ REGIOES = ("OMBRO", "JOELHO", "COLUNA", "OUTRO")
 MODALIDADES = ("INDIVIDUAL", "GRUPO")
 STATUS_ENCERRAMENTO = ("CONCLUIDO", "ALTA", "ABANDONO")
 LIMITE_POR_HORARIO = 2
-STATUS_AGENDAMENTO = ("AGENDADO", "CONFIRMADO", "REALIZADO", "CANCELADO", "FALTOU")
+STATUS_AGENDAMENTO = (
+    "AGENDADO",
+    "CONFIRMADO",
+    "REALIZADO",
+    "CANCELADO",
+    "FALTOU",
+    "FALTA_JUSTIFICADA",
+)
+# Falta justificada conta como falta nos números, mas guarda o motivo.
+STATUS_DE_FALTA = ("FALTOU", "FALTA_JUSTIFICADA")
+# Como cada situação aparece na tela e nas folhas impressas.
+ROTULOS_DE_STATUS = {
+    "AGENDADO": "Agendado",
+    "CONFIRMADO": "Confirmado",
+    "REALIZADO": "Compareceu",
+    "CANCELADO": "Cancelado",
+    "FALTOU": "Faltou",
+    "FALTA_JUSTIFICADA": "Falta justificada",
+}
+# Expediente da clínica: 07:30 às 15:30, sessões de 30 min, encerrando às 16h.
+# O almoço fica fora da grade para todos; bloqueios por profissional virão
+# com a tela de disponibilidade (triagens fixas, reunião e horários fechados).
+HORARIO_ALMOCO = "12:00"
+HORARIOS = [
+    f"{h:02d}:{m:02d}"
+    for h in range(7, 16)
+    for m in (0, 30)
+    if (h, m) >= (7, 30) and f"{h:02d}:{m:02d}" != HORARIO_ALMOCO
+]
+# A clínica não atende sábado nem domingo (0 = segunda ... 6 = domingo).
+DIAS_DE_ATENDIMENTO = (0, 1, 2, 3, 4)
+# A sessão de grupo dura 1 hora: ocupa dois horários seguidos da grade.
+SLOTS_POR_GRUPO = 2
+# Status em que a sessão aceita evolução clínica (e só a partir do dia dela).
+STATUS_COM_EVOLUCAO = ("AGENDADO", "CONFIRMADO", "REALIZADO")
+# Status que registram comparecimento; só valem a partir do dia da sessão.
 # Expediente da clínica: 07:30 às 15:30, sessões de 30 min, encerrando às 16h.
 # O almoço fica fora da grade para todos; bloqueios por profissional virão
 # com a tela de disponibilidade (triagens fixas, reunião e horários fechados).
@@ -79,7 +114,7 @@ SLOTS_POR_GRUPO = 2
 # Status em que a sessão aceita evolução clínica (e só a partir do dia dela).
 STATUS_COM_EVOLUCAO = ("AGENDADO", "CONFIRMADO", "REALIZADO")
 # Status que registram comparecimento; só valem a partir do dia da sessão.
-STATUS_DE_COMPARECIMENTO = ("REALIZADO", "FALTOU")
+STATUS_DE_COMPARECIMENTO = ("REALIZADO", "FALTOU", "FALTA_JUSTIFICADA")
 FUSO_CLINICA = ZoneInfo("America/Sao_Paulo")
 
 
@@ -123,6 +158,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         if not app.config.get("SECRET_KEY"):
             raise RuntimeError("test_config deve informar SECRET_KEY para os testes.")
 
+    app.jinja_env.globals["ROTULOS_DE_STATUS"] = ROTULOS_DE_STATUS
     db.init_app(app)
     login_manager.init_app(app)
     csrf.init_app(app)
@@ -315,7 +351,7 @@ def register_routes(app: Flask) -> None:
             Appointment.data >= inicio, Appointment.data < fim
         ).all()
         realizados = sum(1 for i in itens if i.status == "REALIZADO")
-        faltas = sum(1 for i in itens if i.status == "FALTOU")
+        faltas = sum(1 for i in itens if i.status in STATUS_DE_FALTA)
         previstos = realizados + faltas
         return {
             "realizados": realizados,
@@ -485,7 +521,7 @@ def register_routes(app: Flask) -> None:
             return sum(1 for item in atendimentos if item.status == status)
 
         realizados = contar("REALIZADO")
-        faltas = contar("FALTOU")
+        faltas = sum(1 for i in atendimentos if i.status in STATUS_DE_FALTA)
         cancelados = contar("CANCELADO")
         previstos = len(atendimentos) - cancelados
         taxa_falta = round(faltas * 100 / previstos, 1) if previstos else 0
@@ -542,7 +578,7 @@ def register_routes(app: Flask) -> None:
         }
 
         realizados = sum(1 for i in atendimentos if i.status == "REALIZADO")
-        faltas = sum(1 for i in atendimentos if i.status == "FALTOU")
+        faltas = sum(1 for i in atendimentos if i.status in STATUS_DE_FALTA)
 
         return render_template(
             "prontuario_impressao.html",
@@ -1108,6 +1144,13 @@ def register_routes(app: Flask) -> None:
             )
             return redirect(url_for("agenda", data=agendamento.data.isoformat()))
 
+        if novo_status == "FALTA_JUSTIFICADA":
+            motivo = request.form.get("justificativa", "").strip()
+            if not motivo:
+                flash("Informe o motivo da falta justificada.", "error")
+                return redirect(url_for("agenda", data=agendamento.data.isoformat()))
+            agendamento.observacoes = motivo
+
         agendamento.status = novo_status
         db.session.commit()
         flash("Status atualizado.", "success")
@@ -1153,9 +1196,14 @@ def register_routes(app: Flask) -> None:
 
         realizados = contar("REALIZADO")
         faltas = contar("FALTOU")
+        faltas_justificadas = contar("FALTA_JUSTIFICADA")
         cancelados = contar("CANCELADO")
         previstos = len(itens) - cancelados
-        taxa_falta = round(faltas * 100 / previstos, 1) if previstos else 0
+        taxa_falta = (
+            round((faltas + faltas_justificadas) * 100 / previstos, 1)
+            if previstos
+            else 0
+        )
 
         por_regiao = {}
         for ciclo in lista_ciclos:
@@ -1185,6 +1233,7 @@ def register_routes(app: Flask) -> None:
             total=len(itens),
             realizados=realizados,
             faltas=faltas,
+            faltas_justificadas=faltas_justificadas,
             cancelados=cancelados,
             taxa_falta=taxa_falta,
             ciclos_abertos=len(lista_ciclos),
@@ -1199,7 +1248,7 @@ def register_routes(app: Flask) -> None:
 
     def _motivo_bloqueio_evolucao(agendamento):
         """Explica por que a sessão não aceita evolução, ou devolve None."""
-        if agendamento.status == "FALTOU":
+        if agendamento.status in STATUS_DE_FALTA:
             return "Não é possível registrar evolução em sessão marcada como falta."
         if agendamento.status not in STATUS_COM_EVOLUCAO:
             return "Não é possível registrar evolução em sessão cancelada."

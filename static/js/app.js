@@ -23,4 +23,19 @@ document.addEventListener("DOMContentLoaded", () => {
       }, 4000);
     });
   }
+
+  // O motivo só aparece quando a situação escolhida é falta justificada.
+  document.querySelectorAll("[data-justificativa-de]").forEach((campo) => {
+    const select = document.getElementById(campo.dataset.justificativaDe);
+    if (!select) return;
+
+    const atualizar = () => {
+      const precisa = select.value === "FALTA_JUSTIFICADA";
+      campo.style.display = precisa ? "" : "none";
+      campo.required = precisa;
+    };
+
+    atualizar();
+    select.addEventListener("change", atualizar);
+  });
 });

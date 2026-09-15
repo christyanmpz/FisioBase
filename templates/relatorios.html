@@ -52,7 +52,7 @@
           <span class="stat-icon stat-icon--yellow" aria-hidden="true">!</span>
         </div>
         <strong class="stat-value">{{ taxa_falta }}%</strong>
-        <span class="stat-caption">{{ faltas }} faltas no período</span>
+        <span class="stat-caption">{{ faltas }} + {{ faltas_justificadas }} justificada{{ "s" if faltas_justificadas != 1 }}</span>
       </article>
       <article class="stat-card">
         <div class="stat-card__top">
@@ -194,10 +194,10 @@
           new Chart(alvoStatus, {
             type: "bar",
             data: {
-              labels: ["Realizados", "Faltas", "Cancelados"],
+              labels: ["Realizados", "Faltas", "Justificadas", "Cancelados"],
               datasets: [{
-                data: [{{ realizados }}, {{ faltas }}, {{ cancelados }}],
-                backgroundColor: [cores.verde, cores.amarelo, cores.vermelho],
+                data: [{{ realizados }}, {{ faltas }}, {{ faltas_justificadas }}, {{ cancelados }}],
+                backgroundColor: [cores.verde, cores.vermelho, cores.amarelo, cores.azul],
                 borderRadius: 6,
               }],
             },

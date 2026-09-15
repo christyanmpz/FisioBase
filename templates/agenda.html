@@ -86,8 +86,15 @@
                       <option value="CONFIRMADO" {% if item.status == "CONFIRMADO" %}selected{% endif %}>Confirmado</option>
                       <option value="REALIZADO" {% if item.status == "REALIZADO" %}selected{% endif %}>Realizado</option>
                       <option value="FALTOU" {% if item.status == "FALTOU" %}selected{% endif %}>Faltou</option>
+                      <option value="FALTA_JUSTIFICADA" {% if item.status == "FALTA_JUSTIFICADA" %}selected{% endif %}>Falta justificada</option>
                       <option value="CANCELADO" {% if item.status == "CANCELADO" %}selected{% endif %}>Cancelado</option>
                     </select>
+                    <label class="sr-only" for="justificativa-{{ item.id }}">Motivo da falta justificada</label>
+                    <input id="justificativa-{{ item.id }}" name="justificativa" type="text"
+                           placeholder="Motivo da justificativa"
+                           value="{{ item.observacoes or '' }}"
+                           data-justificativa-de="status-{{ item.id }}"
+                           style="display:none; padding:7px 10px; border:1px solid var(--line); border-radius:8px; min-width:190px;">
                     <button class="button button--ghost button--small" type="submit">Salvar</button>
                   </form>
                 </div>

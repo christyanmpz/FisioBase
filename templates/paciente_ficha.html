@@ -80,13 +80,8 @@
                 </td>
                 <td class="muted-cell">{{ item.fisioterapeuta.nome }}</td>
                 <td>
-                  {% set rotulos = {
-                    "AGENDADO": "Agendado", "CONFIRMADO": "Confirmado",
-                    "REALIZADO": "Compareceu", "FALTOU": "Faltou",
-                    "CANCELADO": "Cancelado"
-                  } %}
                   <span class="role-badge role-badge--{{ 'fisioterapeuta' if item.status == 'REALIZADO' else 'admin' }}">
-                    {{ rotulos[item.status] }}
+                    {{ ROTULOS_DE_STATUS.get(item.status, item.status) }}
                   </span>
                 </td>
 

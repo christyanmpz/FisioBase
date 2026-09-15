@@ -104,8 +104,7 @@
               {% if item.numero_sessao and item.ciclo %}
                 {{ item.numero_sessao }} de {{ item.ciclo.total_sessoes }}
               {% endif %}
-              · {{ {"AGENDADO": "Agendado", "CONFIRMADO": "Confirmado",
-                    "REALIZADO": "Compareceu", "FALTOU": "Faltou"}[item.status] }}
+              · {{ ROTULOS_DE_STATUS.get(item.status, item.status) }}
               · {{ item.fisioterapeuta.nome }}
             </span>
           </div>
