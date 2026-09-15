@@ -41,7 +41,7 @@
           <span class="stat-icon stat-icon--green" aria-hidden="true">+</span>
         </div>
         <strong class="stat-value">{{ pacientes_ativos }}</strong>
-        <span class="stat-caption">{{ ciclos_ativos }} ciclo(s) em tratamento</span>
+        <span class="stat-caption">{{ ciclos_ativos }} ciclo{{ "s" if ciclos_ativos != 1 }} em tratamento</span>
       </article>
       <article class="stat-card">
         <div class="stat-card__top">
@@ -50,7 +50,7 @@
         </div>
         <strong class="stat-value">{{ resumo.realizados }}</strong>
         <span class="stat-caption">
-          {{ resumo.faltas }} falta(s) · {{ resumo.taxa_presenca }}% de presença
+          {{ resumo.faltas }} falta{{ "s" if resumo.faltas != 1 }} · {{ resumo.taxa_presenca }}% de presença
         </span>
       </article>
       <article class="stat-card">
@@ -59,7 +59,7 @@
           <span class="stat-icon stat-icon--blue" aria-hidden="true">◎</span>
         </div>
         <strong class="stat-value">{{ grupos_ativos }}</strong>
-        <span class="stat-caption">{{ total_fisioterapeutas }} profissional(is) na equipe</span>
+        <span class="stat-caption">{{ total_fisioterapeutas }} {{ "profissional" if total_fisioterapeutas == 1 else "profissionais" }} na equipe</span>
       </article>
     </section>
 
@@ -132,7 +132,7 @@
           {% endfor %}
         </div>
         <div class="panel-note">
-          {{ profissionais|length }} conta(s) · {{ total_admins }} com acesso total.
+          {{ profissionais|length }} conta{{ "s" if profissionais|length != 1 }} · {{ total_admins }} com acesso total.
         </div>
       </aside>
     </section>

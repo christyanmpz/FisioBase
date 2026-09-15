@@ -132,9 +132,10 @@
         Chart.defaults.font.family = "DM Sans, sans-serif";
         Chart.defaults.color = "#799092";
 
-        function barras(id, rotulos, valores, cor, titulo) {
+        function barras(id, rotulos, valores, cor, titulo, horizontal) {
           const alvo = document.getElementById(id);
           if (!alvo) return;
+          const eixoDosValores = horizontal ? "x" : "y";
           new Chart(alvo, {
             type: "bar",
             data: {
@@ -143,10 +144,19 @@
             },
             options: {
               responsive: true,
+              indexAxis: horizontal ? "y" : "x",
               plugins: { legend: { display: false } },
-              scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+              scales: {
+                [eixoDosValores]: { beginAtZero: true, ticks: { precision: 0 } },
+              },
             },
           });
+        }
+
+        // Nome longo não cabe no eixo: mostra o primeiro nome e o último sobrenome.
+        function nomeCurto(nome) {
+          const partes = nome.trim().split(/\s+/);
+          return partes.length < 2 ? nome : partes[0] + " " + partes[partes.length - 1];
         }
 
         {% if por_horario %}
@@ -168,7 +178,7 @@
               labels: {{ por_regiao.keys()|list|tojson }},
               datasets: [{
                 data: {{ por_regiao.values()|list|tojson }},
-                backgroundColor: [cores.aqua, cores.amarelo, cores.azul, cores.verde],
+                backgroundColor: [cores.aqua, cores.amarelo, cores.azul, cores.navy],
               }],
             },
             options: {
@@ -202,10 +212,11 @@
         {% if por_profissional %}
         barras(
           "grafico-profissional",
-          {{ por_profissional.keys()|list|tojson }},
+          {{ por_profissional.keys()|list|tojson }}.map(nomeCurto),
           {{ por_profissional.values()|list|tojson }},
-          cores.navy,
-          "Realizados"
+          cores.azul,
+          "Realizados",
+          true
         );
         {% endif %}
       })();

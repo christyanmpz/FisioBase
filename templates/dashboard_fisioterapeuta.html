@@ -50,7 +50,7 @@
         </div>
         <strong class="stat-value">{{ resumo.realizados }}</strong>
         <span class="stat-caption">
-          {{ resumo.faltas }} falta(s) · {{ resumo.taxa_presenca }}% de presença
+                    {{ resumo.faltas }} falta{{ "s" if resumo.faltas != 1 }} · {{ resumo.taxa_presenca }}% de presença
         </span>
       </article>
     </section>

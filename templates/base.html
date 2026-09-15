@@ -57,8 +57,8 @@
             Pacientes
           </a>
 
-            <a class="nav-item" href="{{ url_for('listar_grupos') }}">
-             <span class="nav-icon" aria-hidden="true">◎</span>
+          <a class="nav-item" href="{{ url_for('listar_grupos') }}">
+            <span class="nav-icon" aria-hidden="true">◎</span>
             Grupos
           </a>
 
@@ -87,7 +87,7 @@
       <main class="main-content">
         {% with mensagens = get_flashed_messages(with_categories=true) %}
           {% if mensagens %}
-            <div aria-live="polite">
+            <div class="toast-stack" role="status" aria-live="polite" data-toast-stack>
               {% for categoria, mensagem in mensagens %}
                 <p class="flash flash--{{ categoria }}">{{ mensagem }}</p>
               {% endfor %}

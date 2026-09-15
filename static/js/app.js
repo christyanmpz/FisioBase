@@ -11,4 +11,16 @@ document.addEventListener("DOMContentLoaded", () => {
       toggle.setAttribute("aria-pressed", String(shouldShow));
     });
   });
+
+  // Avisos flutuantes somem sozinhos; erros ficam até o usuário sair da tela.
+  const avisos = document.querySelector("[data-toast-stack]");
+  if (avisos) {
+    avisos.querySelectorAll(".flash").forEach((aviso) => {
+      if (aviso.classList.contains("flash--error")) return;
+      window.setTimeout(() => {
+        aviso.classList.add("flash--saindo");
+        window.setTimeout(() => aviso.remove(), 320);
+      }, 4000);
+    });
+  }
 });

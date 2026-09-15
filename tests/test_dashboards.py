@@ -81,7 +81,7 @@ def test_dashboard_do_fisioterapeuta_mostra_presencas_do_mes(client, app, monkey
     fazer_login(client, "fisio@teste.com", SENHA_FISIO)
     corpo = client.get("/dashboard/fisioterapeuta").get_data(as_text=True)
 
-    assert "1 falta(s)" in corpo
+    assert "1 falta " in corpo
     assert "67% de presença" in corpo
 
 
@@ -198,7 +198,7 @@ def test_dashboard_do_admin_conta_pacientes_e_ciclos(client, app, monkeypatch):
     fazer_login(client, "admin@teste.com", SENHA_ADMIN)
     corpo = client.get("/dashboard/admin").get_data(as_text=True)
 
-    assert "1 ciclo(s) em tratamento" in corpo
+    assert "1 ciclo em tratamento" in corpo
 
 
 def test_dashboard_do_admin_nao_tem_mais_o_roadmap_antigo(client, app, monkeypatch):
