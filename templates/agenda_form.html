@@ -20,6 +20,8 @@
 
       <div class="field">
         <label for="paciente_id">Paciente</label>
+        <input type="search" class="campo-busca" data-busca-de="paciente_id" hidden
+               placeholder="Digite para filtrar pelo nome" autocomplete="off">
         <select id="paciente_id" name="paciente_id" required autofocus>
           <option value="">Selecione</option>
           {% for paciente in pacientes %}

@@ -123,6 +123,8 @@
 
         <div class="field">
           <label for="paciente_id">Paciente</label>
+          <input type="search" class="campo-busca" data-busca-de="paciente_id" hidden
+                 placeholder="Digite para filtrar pelo nome" autocomplete="off">
           <select id="paciente_id" name="paciente_id" required>
             <option value="">Selecione</option>
             {% for paciente in disponiveis %}
@@ -137,7 +139,7 @@
             <option value="">Sem vínculo com ciclo</option>
             {% for paciente in disponiveis %}
               {% for ciclo in ciclos_por_paciente[paciente.id] %}
-              <option value="{{ ciclo.id }}">
+              <option value="{{ ciclo.id }}" data-paciente="{{ paciente.id }}">
                 {{ paciente.nome }} · {{ ciclo.regiao|capitalize }} · avaliação em {{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}
               </option>
               {% endfor %}
@@ -150,6 +152,29 @@
           <button class="button button--primary" type="submit">Adicionar ao grupo</button>
         </div>
       </form>
+
+      <script>
+        (function () {
+          const paciente = document.getElementById("paciente_id");
+          const ciclo = document.getElementById("ciclo_id");
+          if (!paciente || !ciclo) return;
+          const opcoes = Array.from(ciclo.options);
+
+          function filtrarCiclos() {
+            const escolhido = paciente.value;
+            ciclo.innerHTML = "";
+            opcoes.forEach(function (opcao) {
+              const dono = opcao.dataset.paciente;
+              if (!dono || dono === escolhido) {
+                ciclo.appendChild(opcao);
+              }
+            });
+          }
+
+          paciente.addEventListener("change", filtrarCiclos);
+          filtrarCiclos();
+        })();
+      </script>
       {% else %}
       <p class="panel-note">
         Não há pacientes disponíveis para adicionar. Todos os que você acompanha já
@@ -166,7 +191,7 @@
           <p class="eyebrow eyebrow--muted">Histórico</p>
           <h2>Já passaram pelo grupo</h2>
         </div>
-        <span class="panel-count">{{ historico|length }} registros</span>
+        <span class="panel-count">{{ historico|length }} registro{{ "s" if historico|length != 1 }}</span>
       </div>
 
       <div class="table-wrap">

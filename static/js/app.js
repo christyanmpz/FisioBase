@@ -38,4 +38,37 @@ document.addEventListener("DOMContentLoaded", () => {
     atualizar();
     select.addEventListener("change", atualizar);
   });
+
+  // Busca dentro de um select longo: o campo filtra as opções pelo texto.
+  // Sem JavaScript, o select continua completo e utilizável.
+  document.querySelectorAll("[data-busca-de]").forEach((busca) => {
+    const select = document.getElementById(busca.dataset.buscaDe);
+    if (!select) return;
+
+    busca.hidden = false;
+
+    const filtrar = () => {
+      const termo = busca.value.trim().toLowerCase();
+      let visiveis = 0;
+
+      Array.from(select.options).forEach((opcao) => {
+        if (!opcao.value) return;
+        const combina = !termo || opcao.text.toLowerCase().includes(termo);
+        opcao.hidden = !combina;
+        opcao.disabled = !combina;
+        if (combina) visiveis += 1;
+      });
+
+      const escolhida = select.selectedOptions[0];
+      if (escolhida && escolhida.hidden) select.value = "";
+
+      busca.setAttribute(
+        "aria-label",
+        visiveis === 1 ? "1 resultado" : visiveis + " resultados"
+      );
+    };
+
+    busca.addEventListener("input", filtrar);
+    filtrar();
+  });
 });

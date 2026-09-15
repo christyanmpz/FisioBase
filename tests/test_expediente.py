@@ -190,3 +190,12 @@ def test_agendar_para_hoje_continua_permitido(client, app, monkeypatch):
 
     assert agendar(client, id_paciente, DIA_UTIL, "09:00").status_code == 302
     assert contar(app) == 1
+
+
+def test_formulario_tem_campo_de_busca_de_paciente(client, app):
+    criar_paciente(app)
+    fazer_login(client, "fisio@teste.com", SENHA_FISIO)
+
+    corpo = client.get("/agenda/novo").get_data(as_text=True)
+
+    assert 'data-busca-de="paciente_id"' in corpo

@@ -1859,3 +1859,13 @@ tbody tr:last-child td {
     border-bottom-color: #000;
   }
 }
+
+
+/* Campo de busca que filtra um select longo. */
+.campo-busca {
+  margin-bottom: 7px;
+}
+
+.field .campo-busca[hidden] {
+  display: none;
+}

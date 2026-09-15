@@ -384,3 +384,27 @@ def test_participacao_de_outro_grupo_da_404(client, app):
 
     assert resposta.status_code == 404
     assert len(ativas(app, id_grupo)) == 1
+
+
+def test_formulario_tem_campo_de_busca_de_paciente(client, app):
+    id_fisio = id_do_usuario(app, "fisio@teste.com")
+    id_grupo = criar_grupo(app, id_fisio)
+    criar_paciente(app, id_fisio)
+
+    fazer_login(client, "fisio@teste.com", SENHA_FISIO)
+    corpo = client.get(f"/grupos/{id_grupo}/pacientes").get_data(as_text=True)
+
+    assert 'data-busca-de="paciente_id"' in corpo
+
+
+def test_ciclos_do_formulario_sabem_de_quem_sao(client, app):
+    """Cada opção de ciclo carrega o paciente, para o filtro na tela."""
+    id_fisio = id_do_usuario(app, "fisio@teste.com")
+    id_grupo = criar_grupo(app, id_fisio)
+    id_paciente = criar_paciente(app, id_fisio)
+    criar_ciclo(app, id_paciente, id_fisio)
+
+    fazer_login(client, "fisio@teste.com", SENHA_FISIO)
+    corpo = client.get(f"/grupos/{id_grupo}/pacientes").get_data(as_text=True)
+
+    assert f'data-paciente="{id_paciente}"' in corpo
