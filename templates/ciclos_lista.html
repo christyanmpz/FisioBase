@@ -77,6 +77,12 @@
               <td>
                 <div class="table-actions">
                   {% if ciclo.status == "ATIVO" %}
+                  <a class="button button--ghost button--small"
+                     href="{{ url_for('gerar_sessoes', ciclo_id=ciclo.id) }}">Gerar sessões</a>
+                  {% endif %}
+                  <a class="button button--ghost button--small"
+                     href="{{ url_for('cartao_do_ciclo', ciclo_id=ciclo.id) }}">Cartão</a>
+                  {% if ciclo.status == "ATIVO" %}
                   <form method="post" action="{{ url_for('encerrar_ciclo', ciclo_id=ciclo.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <label class="sr-only" for="status-{{ ciclo.id }}">Motivo do encerramento</label>

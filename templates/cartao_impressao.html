@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Cartão · {{ paciente.nome }}{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar no-print">
+      <div>
+        <p class="breadcrumb">{{ paciente.nome }} <span>/</span> Cartão</p>
+        <h1>Cartão do paciente</h1>
+      </div>
+      <div class="table-actions">
+        <a class="button button--ghost" href="{{ url_for('listar_ciclos', paciente_id=paciente.id) }}">Voltar aos ciclos</a>
+        <button class="button button--primary" type="button" onclick="window.print()">Imprimir</button>
+      </div>
+    </header>
+
+    <article class="folha cartao">
+      <header class="folha-cabecalho">
+        <div>
+          <p class="folha-marca">FisioBase</p>
+          <h2>Cartão de atendimento</h2>
+        </div>
+        <p class="folha-emissao">Emitido em {{ emitido_em.strftime("%d/%m/%Y") }}</p>
+      </header>
+
+      <section class="folha-bloco">
+        <dl class="folha-dados">
+          <div><dt>Paciente</dt><dd>{{ paciente.nome }}</dd></div>
+          <div><dt>Profissional</dt><dd>{{ ciclo.fisioterapeuta.nome }}</dd></div>
+          <div><dt>Região tratada</dt>
+            <dd>{{ ciclo.regiao|capitalize if ciclo.regiao else "—" }}</dd>
+          </div>
+          <div><dt>Avaliação</dt><dd>{{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}</dd></div>
+        </dl>
+      </section>
+
+      <section class="folha-bloco">
+        <h3>Suas datas de atendimento</h3>
+
+        {% if sessoes %}
+        <ol class="cartao-datas">
+          {% for sessao in sessoes %}
+          <li class="cartao-data">
+            <span class="cartao-numero">{{ loop.index }}</span>
+            <span class="cartao-dia">
+              <strong>{{ sessao.data.strftime("%d/%m/%Y") }}</strong>
+              <small>{{ nomes_dos_dias[sessao.data.weekday()].split("-")[0] }} · {{ sessao.hora.strftime("%H:%M") }}</small>
+            </span>
+            <span class="cartao-visto"></span>
+          </li>
+          {% endfor %}
+        </ol>
+        {% else %}
+        <p class="folha-texto">
+          Nenhuma sessão agendada ainda para este ciclo.
+        </p>
+        {% endif %}
+      </section>
+
+      <section class="folha-bloco cartao-orientacoes">
+        <h3>Orientações</h3>
+        <ul class="folha-lista">
+          <li>Chegue com 10 minutos de antecedência e traga este cartão.</li>
+          <li>Em caso de falta, avise a recepção com antecedência.</li>
+          <li>Traga roupa confortável e, se usar, seus óculos ou aparelho auditivo.</li>
+        </ul>
+      </section>
+
+      <footer class="folha-assinatura">
+        <div>
+          <span class="folha-linha"></span>
+          <p>{{ ciclo.fisioterapeuta.nome }}</p>
+        </div>
+        <div>
+          <span class="folha-linha"></span>
+          <p>Recebido pelo paciente</p>
+        </div>
+      </footer>
+    </article>
+{% endblock %}

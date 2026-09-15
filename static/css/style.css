@@ -1917,3 +1917,112 @@ tbody tr:last-child td {
   opacity: 0.45;
   pointer-events: none;
 }
+
+
+/* Dias da semana como caixas selecionáveis. */
+.opcoes-dias {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.opcao-dia {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 13px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--white);
+  cursor: pointer;
+  font-size: 0.86rem;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.opcao-dia:hover {
+  border-color: #9fbcba;
+  background: #f4faf9;
+}
+
+.opcao-dia:has(input:checked) {
+  border-color: var(--navy-deep);
+  background: #e4eeed;
+  font-weight: 600;
+}
+
+/* Cartão do paciente. */
+.cartao {
+  max-width: 620px;
+}
+
+.cartao-datas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(178px, 1fr));
+  gap: 9px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.cartao-data {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid #c9dad9;
+  border-radius: 9px;
+}
+
+.cartao-numero {
+  display: inline-flex;
+  width: 25px;
+  height: 25px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--white);
+  background: var(--navy-deep);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.cartao-dia {
+  flex: 1;
+  line-height: 1.25;
+}
+
+.cartao-dia small {
+  display: block;
+  color: #5c7877;
+  font-size: 0.72rem;
+}
+
+.cartao-visto {
+  width: 19px;
+  height: 19px;
+  border: 1px solid #9fbcba;
+  border-radius: 4px;
+}
+
+.folha-lista {
+  padding-left: 18px;
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+
+@media print {
+  .cartao {
+    max-width: none;
+  }
+
+  .cartao-numero {
+    color: #000;
+    background: transparent !important;
+    border: 1px solid #5d7472;
+  }
+
+  .cartao-data {
+    border-color: #8fa5a3;
+  }
+}

@@ -41,9 +41,11 @@ from models import (
     PHYSIOTHERAPIST_PROFILE,
     WEEKDAY_NAMES,
     Appointment,
+    Card,
     Evolution,
     Group,
     GroupPatient,
+    Holiday,
     Patient,
     TreatmentCycle,
     User,
@@ -63,6 +65,8 @@ STATUS_ENCERRAMENTO = ("CONCLUIDO", "ALTA", "ABANDONO")
 LIMITE_POR_HORARIO = 2
 # Quantos pacientes por página na listagem.
 PACIENTES_POR_PAGINA = 20
+# Quantas vezes por semana o paciente pode ser atendido.
+FREQUENCIAS = (1, 2, 3)
 STATUS_AGENDAMENTO = (
     "AGENDADO",
     "CONFIRMADO",
@@ -842,6 +846,207 @@ def register_routes(app: Flask) -> None:
             return redirect(url_for("listar_ciclos", paciente_id=paciente.id))
 
         return form()
+
+    def _feriados_no_periodo(inicio, fim):
+        """Datas a pular: feriados nacionais, municipais e pontos facultativos."""
+        return {
+            f.data: f.nome
+            for f in Holiday.query.filter(
+                Holiday.data >= inicio, Holiday.data <= fim
+            ).all()
+        }
+
+    def _datas_das_sessoes(inicio, dias_da_semana, quantidade, feriados):
+        """Gera as datas do ciclo, pulando fim de semana e feriado.
+
+        Devolve (datas, pulados). O limite de 400 dias evita laço infinito
+        se a combinação de dias e feriados nunca fechar a conta.
+        """
+        datas = []
+        pulados = []
+        dia = inicio
+        limite = inicio + timedelta(days=400)
+
+        while len(datas) < quantidade and dia <= limite:
+            if dia.weekday() in dias_da_semana:
+                if dia in feriados:
+                    pulados.append((dia, feriados[dia]))
+                else:
+                    datas.append(dia)
+            dia += timedelta(days=1)
+
+        return datas, pulados
+
+    @app.route("/ciclos/<int:ciclo_id>/sessoes", methods=["GET", "POST"])
+    @login_required
+    def gerar_sessoes(ciclo_id: int):
+        """Cria de uma vez as sessões restantes do ciclo, como a clínica faz
+        no dia da triagem."""
+        ciclo = db.session.get(TreatmentCycle, ciclo_id)
+        if ciclo is None:
+            abort(404)
+        if not ciclo.acessivel_por(current_user):
+            abort(403)
+
+        ja_agendadas = Appointment.query.filter(
+            Appointment.ciclo_id == ciclo.id,
+            Appointment.tipo == "SESSAO",
+            Appointment.status != "CANCELADO",
+        ).count()
+        restantes = max(ciclo.total_sessoes - ja_agendadas, 0)
+
+        def form(codigo=200, valores=None):
+            return (
+                render_template(
+                    "gerar_sessoes.html",
+                    ciclo=ciclo,
+                    paciente=ciclo.paciente,
+                    restantes=restantes,
+                    ja_agendadas=ja_agendadas,
+                    horarios=HORARIOS,
+                    dias=[(i, WEEKDAY_NAMES[i]) for i in DIAS_DE_ATENDIMENTO],
+                    valores=valores or {},
+                    hoje=hoje(),
+                ),
+                codigo,
+            )
+
+        if request.method == "GET":
+            return form()
+
+        valores = {
+            "inicio": request.form.get("inicio", "").strip(),
+            "hora": request.form.get("hora", "").strip(),
+            "quantidade": request.form.get("quantidade", "").strip(),
+            "dias": request.form.getlist("dias"),
+        }
+
+        if ciclo.status != "ATIVO":
+            flash("Só é possível gerar sessões de um ciclo ativo.", "error")
+            return form(400, valores)
+
+        if restantes == 0:
+            flash(
+                f"Este ciclo já tem as {ciclo.total_sessoes} sessões agendadas.",
+                "error",
+            )
+            return form(400, valores)
+
+        try:
+            inicio = date.fromisoformat(valores["inicio"])
+        except ValueError:
+            flash("Informe a data de início.", "error")
+            return form(400, valores)
+
+        if inicio < hoje():
+            flash("A data de início não pode estar no passado.", "error")
+            return form(400, valores)
+
+        if valores["hora"] not in HORARIOS:
+            flash("Escolha um horário do expediente.", "error")
+            return form(400, valores)
+        hora = time.fromisoformat(valores["hora"])
+
+        try:
+            dias_da_semana = {int(d) for d in valores["dias"]}
+        except ValueError:
+            dias_da_semana = set()
+        if not dias_da_semana or not dias_da_semana <= set(DIAS_DE_ATENDIMENTO):
+            flash("Escolha ao menos um dia da semana, de segunda a sexta.", "error")
+            return form(400, valores)
+
+        try:
+            quantidade = int(valores["quantidade"] or restantes)
+        except ValueError:
+            flash("Quantidade de sessões inválida.", "error")
+            return form(400, valores)
+        if not 1 <= quantidade <= restantes:
+            flash(f"A quantidade deve estar entre 1 e {restantes}.", "error")
+            return form(400, valores)
+
+        datas, pulados = _datas_das_sessoes(
+            inicio,
+            dias_da_semana,
+            quantidade,
+            _feriados_no_periodo(inicio, inicio + timedelta(days=400)),
+        )
+
+        if len(datas) < quantidade:
+            flash(
+                "Não foi possível gerar todas as datas. Reveja os dias da semana.",
+                "error",
+            )
+            return form(400, valores)
+
+        ocupados = [
+            data
+            for data in datas
+            if not _horario_disponivel(ciclo.fisioterapeuta_id, data, hora)
+        ]
+        if ocupados:
+            primeiro = ocupados[0].strftime("%d/%m/%Y")
+            flash(
+                f"O horário {valores['hora']} já está cheio em {primeiro}. "
+                "Escolha outro horário ou outros dias.",
+                "error",
+            )
+            return form(400, valores)
+
+        for data in datas:
+            db.session.add(
+                Appointment(
+                    tipo="SESSAO",
+                    paciente_id=ciclo.paciente_id,
+                    ciclo_id=ciclo.id,
+                    fisioterapeuta_id=ciclo.fisioterapeuta_id,
+                    data=data,
+                    hora=hora,
+                    duracao_min=30,
+                    status="AGENDADO",
+                )
+            )
+        db.session.commit()
+
+        if pulados:
+            nomes = ", ".join(f"{d.strftime('%d/%m')} ({nome})" for d, nome in pulados)
+            flash(f"Datas puladas por feriado: {nomes}.", "info")
+        flash(f"{len(datas)} sessão(ões) agendada(s).", "success")
+        return redirect(url_for("cartao_do_ciclo", ciclo_id=ciclo.id))
+
+    @app.get("/ciclos/<int:ciclo_id>/cartao")
+    @login_required
+    def cartao_do_ciclo(ciclo_id: int):
+        """Cartão com as datas, para imprimir e entregar ao paciente."""
+        ciclo = db.session.get(TreatmentCycle, ciclo_id)
+        if ciclo is None:
+            abort(404)
+        if not ciclo.acessivel_por(current_user):
+            abort(403)
+
+        sessoes = (
+            Appointment.query.filter(
+                Appointment.ciclo_id == ciclo.id,
+                Appointment.status != "CANCELADO",
+            )
+            .order_by(Appointment.data, Appointment.hora)
+            .all()
+        )
+
+        registro = db.session.scalar(db.select(Card).where(Card.ciclo_id == ciclo.id))
+        if registro is None:
+            registro = Card(ciclo_id=ciclo.id, gerado_por=current_user.id)
+            db.session.add(registro)
+            db.session.commit()
+
+        return render_template(
+            "cartao_impressao.html",
+            ciclo=ciclo,
+            paciente=ciclo.paciente,
+            sessoes=sessoes,
+            cartao=registro,
+            emitido_em=hoje(),
+            nomes_dos_dias=WEEKDAY_NAMES,
+        )
 
     @app.post("/ciclos/<int:ciclo_id>/encerrar")
     @login_required

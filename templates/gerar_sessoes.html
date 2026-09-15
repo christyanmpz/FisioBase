@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Gerar sessões · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar">
+      <div>
+        <p class="breadcrumb">{{ paciente.nome }} <span>/</span> Ciclo</p>
+        <h1>Gerar sessões</h1>
+      </div>
+      <a class="button button--ghost" href="{{ url_for('listar_ciclos', paciente_id=paciente.id) }}">Voltar aos ciclos</a>
+    </header>
+
+    <section class="stats-grid" aria-label="Situação do ciclo">
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Sessões do ciclo</span>
+          <span class="stat-icon stat-icon--blue" aria-hidden="true">◎</span>
+        </div>
+        <strong class="stat-value">{{ ciclo.total_sessoes }}</strong>
+        <span class="stat-caption">{{ ciclo.regiao|capitalize if ciclo.regiao else "Sem região" }}</span>
+      </article>
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Já agendadas</span>
+          <span class="stat-icon stat-icon--green" aria-hidden="true">✓</span>
+        </div>
+        <strong class="stat-value">{{ ja_agendadas }}</strong>
+        <span class="stat-caption">no calendário</span>
+      </article>
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">A agendar</span>
+          <span class="stat-icon stat-icon--yellow" aria-hidden="true">+</span>
+        </div>
+        <strong class="stat-value">{{ restantes }}</strong>
+        <span class="stat-caption">sessões restantes</span>
+      </article>
+    </section>
+
+    {% if restantes == 0 %}
+    <section class="panel">
+      <div class="empty-state">
+        <div class="empty-state__icon" aria-hidden="true">✓</div>
+        <h3>Todas as sessões já foram agendadas</h3>
+        <p>Este ciclo tem as {{ ciclo.total_sessoes }} sessões no calendário.</p>
+        <a class="button button--primary" href="{{ url_for('cartao_do_ciclo', ciclo_id=ciclo.id) }}">Ver o cartão</a>
+      </div>
+    </section>
+    {% else %}
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Horário fixo semanal</p>
+          <h2>Como as sessões serão distribuídas</h2>
+        </div>
+      </div>
+
+      <form method="post" class="form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="field">
+          <label for="inicio">Primeira sessão</label>
+          <input id="inicio" name="inicio" type="date" required
+                 min="{{ hoje.isoformat() }}"
+                 value="{{ valores.get('inicio', '') }}">
+          <small>A contagem começa nesta data, respeitando os dias escolhidos abaixo.</small>
+        </div>
+
+        <div class="field">
+          <label for="hora">Horário</label>
+          <select id="hora" name="hora" required>
+            <option value="">Selecione</option>
+            {% for horario in horarios %}
+            <option value="{{ horario }}" {% if valores.get('hora') == horario %}selected{% endif %}>
+              {{ horario }}
+            </option>
+            {% endfor %}
+          </select>
+          <small>O mesmo horário vale para todas as sessões do ciclo.</small>
+        </div>
+
+        <div class="field">
+          <label>Dias da semana</label>
+          <div class="opcoes-dias">
+            {% for numero, nome in dias %}
+            <label class="opcao-dia">
+              <input type="checkbox" name="dias" value="{{ numero }}"
+                     {% if numero|string in valores.get('dias', []) %}checked{% endif %}>
+              <span>{{ nome.split("-")[0] }}</span>
+            </label>
+            {% endfor %}
+          </div>
+          <small>Marque quantos dias o paciente será atendido por semana.</small>
+        </div>
+
+        <div class="field">
+          <label for="quantidade">Quantas sessões gerar</label>
+          <input id="quantidade" name="quantidade" type="number"
+                 min="1" max="{{ restantes }}"
+                 value="{{ valores.get('quantidade') or restantes }}">
+          <small>No máximo {{ restantes }}, que é o que falta para fechar o ciclo.</small>
+        </div>
+
+        <p class="panel-note">
+          Feriados cadastrados são pulados automaticamente, e o sistema avisa
+          quais datas foram puladas.
+        </p>
+
+        <div class="form-actions">
+          <button class="button button--primary" type="submit">Gerar sessões</button>
+          <a class="button button--ghost" href="{{ url_for('listar_ciclos', paciente_id=paciente.id) }}">Cancelar</a>
+        </div>
+      </form>
+    </section>
+    {% endif %}
+{% endblock %}

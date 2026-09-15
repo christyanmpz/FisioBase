@@ -226,6 +226,36 @@ class GroupPatient(db.Model):
         return self.data_saida is None
 
 
+class Holiday(db.Model):
+    """Feriado ou ponto facultativo: o dia é pulado ao gerar as sessões."""
+
+    __tablename__ = "feriados"
+
+    id = db.Column(db.Integer, primary_key=True)
+    data = db.Column(db.Date, nullable=False, index=True)
+    nome = db.Column(db.String(120), nullable=False)
+    tipo = db.Column(db.String(20), nullable=False, default="NACIONAL")
+
+
+class Card(db.Model):
+    """Cartão entregue ao paciente com as datas do ciclo."""
+
+    __tablename__ = "cartoes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    ciclo_id = db.Column(
+        db.Integer, db.ForeignKey("ciclos_tratamento.id"), nullable=False
+    )
+    gerado_por = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
+    gerado_em = db.Column(
+        db.DateTime(timezone=True), nullable=False, server_default=db.func.now()
+    )
+    observacoes = db.Column(db.Text, nullable=True)
+
+    ciclo = db.relationship("TreatmentCycle", backref="cartoes")
+    autor = db.relationship("User", backref="cartoes")
+
+
 class Appointment(db.Model):
     __tablename__ = "agendamentos"
 
