@@ -1678,3 +1678,184 @@ tbody tr:last-child td {
     font-size: 0.7rem;
   }
 }
+
+
+/* ------------------------------------------------------------------ */
+/* Folha de impressão: prontuário e evolução clínica                   */
+/* ------------------------------------------------------------------ */
+
+.folha {
+  max-width: 840px;
+  padding: 34px 38px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  margin: 0 auto;
+  background: var(--white);
+  color: #1d2f33;
+}
+
+.folha-cabecalho {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--navy-deep);
+  margin-bottom: 22px;
+}
+
+.folha-marca {
+  margin: 0 0 2px;
+  color: var(--navy-deep);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.folha-cabecalho h2 {
+  margin: 0;
+  font-size: 1.32rem;
+}
+
+.folha-emissao {
+  margin: 0;
+  color: #5c7877;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.folha-bloco {
+  margin-bottom: 26px;
+}
+
+.folha-bloco h3 {
+  margin: 0 0 9px;
+  color: var(--navy-deep);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.folha-dados {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px 26px;
+  margin: 0;
+}
+
+.folha-dados div {
+  padding-bottom: 6px;
+  border-bottom: 1px dotted #c7d6d5;
+}
+
+.folha-dados dt {
+  color: #5c7877;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.folha-dados dd {
+  margin: 2px 0 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.folha-texto {
+  margin: 0 0 8px;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.folha-texto--pendente {
+  color: #8a6a1f;
+  font-style: italic;
+}
+
+.folha-resumo {
+  margin: 0 0 14px;
+  color: #5c7877;
+  font-size: 0.82rem;
+}
+
+.folha-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.folha-tabela th,
+.folha-tabela td {
+  padding: 7px 9px;
+  border-bottom: 1px solid #d7e4e3;
+  text-align: left;
+}
+
+.folha-tabela thead th {
+  border-bottom: 1.5px solid #9fbcba;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.folha-sessao {
+  padding: 12px 14px;
+  border-left: 3px solid var(--aqua, #58b99d);
+  border-radius: 0 8px 8px 0;
+  margin-bottom: 12px;
+  background: #f7fbfa;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.folha-sessao__topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+
+.folha-sessao__topo span {
+  color: #5c7877;
+  font-size: 0.78rem;
+}
+
+.folha-assinatura {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 40px;
+  margin-top: 46px;
+}
+
+.folha-assinatura p {
+  margin: 6px 0 0;
+  color: #5c7877;
+  font-size: 0.76rem;
+  text-align: center;
+}
+
+.folha-linha {
+  display: block;
+  border-top: 1px solid #5d7472;
+}
+
+@media print {
+  .folha {
+    max-width: none;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .folha-sessao {
+    border-left: 2px solid #5d7472;
+    background: transparent;
+  }
+
+  .folha-cabecalho {
+    border-bottom-color: #000;
+  }
+}

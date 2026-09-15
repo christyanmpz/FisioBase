@@ -9,7 +9,10 @@
         <p class="breadcrumb">Pacientes <span>/</span> Ficha</p>
         <h1>{{ paciente.nome }}</h1>
       </div>
-      <a class="button button--ghost" href="{{ url_for('editar_paciente', paciente_id=paciente.id) }}">Editar cadastro</a>
+      <div class="table-actions">
+        <a class="button button--ghost" href="{{ url_for('prontuario_paciente', paciente_id=paciente.id) }}">Imprimir prontuário</a>
+        <a class="button button--ghost" href="{{ url_for('editar_paciente', paciente_id=paciente.id) }}">Editar cadastro</a>
+      </div>
     </header>
 
     <section class="stats-grid" aria-label="Resumo dos atendimentos">

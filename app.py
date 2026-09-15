@@ -510,6 +510,51 @@ def register_routes(app: Flask) -> None:
             taxa_falta=taxa_falta,
         )
 
+    @app.get("/pacientes/<int:paciente_id>/prontuario")
+    @login_required
+    def prontuario_paciente(paciente_id: int):
+        """Histórico completo para impressão, o equivalente à folha que hoje
+        vai grampeada ao prontuário de papel."""
+        paciente = db.session.get(Patient, paciente_id)
+        if paciente is None:
+            abort(404)
+        if not paciente.acessivel_por(current_user):
+            abort(403)
+
+        ciclos = (
+            TreatmentCycle.query.filter_by(paciente_id=paciente.id)
+            .order_by(TreatmentCycle.data_avaliacao)
+            .all()
+        )
+
+        atendimentos = (
+            Appointment.query.filter(
+                Appointment.paciente_id == paciente.id,
+                Appointment.status != "CANCELADO",
+            )
+            .order_by(Appointment.data, Appointment.hora)
+            .all()
+        )
+
+        evolucoes = {
+            e.agendamento_id: e
+            for e in Evolution.query.filter(Evolution.paciente_id == paciente.id).all()
+        }
+
+        realizados = sum(1 for i in atendimentos if i.status == "REALIZADO")
+        faltas = sum(1 for i in atendimentos if i.status == "FALTOU")
+
+        return render_template(
+            "prontuario_impressao.html",
+            paciente=paciente,
+            ciclos=ciclos,
+            atendimentos=atendimentos,
+            evolucoes=evolucoes,
+            realizados=realizados,
+            faltas=faltas,
+            emitido_em=hoje(),
+        )
+
     @app.route("/pacientes/novo", methods=["GET", "POST"])
     @login_required
     def novo_paciente():

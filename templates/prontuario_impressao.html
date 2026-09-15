@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Prontuário · {{ paciente.nome }}{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar no-print">
+      <div>
+        <p class="breadcrumb">Pacientes <span>/</span> Prontuário</p>
+        <h1>{{ paciente.nome }}</h1>
+      </div>
+      <div class="table-actions">
+        <a class="button button--ghost" href="{{ url_for('ficha_paciente', paciente_id=paciente.id) }}">Voltar à ficha</a>
+        <button class="button button--primary" type="button" onclick="window.print()">Imprimir</button>
+      </div>
+    </header>
+
+    <article class="folha">
+      <header class="folha-cabecalho">
+        <div>
+          <p class="folha-marca">FisioBase</p>
+          <h2>Prontuário de fisioterapia</h2>
+        </div>
+        <p class="folha-emissao">Emitido em {{ emitido_em.strftime("%d/%m/%Y") }}</p>
+      </header>
+
+      <section class="folha-bloco">
+        <h3>Identificação</h3>
+        <dl class="folha-dados">
+          <div><dt>Nome</dt><dd>{{ paciente.nome }}</dd></div>
+          <div><dt>CPF</dt><dd>{{ paciente.cpf or "—" }}</dd></div>
+          <div><dt>Nascimento</dt>
+            <dd>{{ paciente.data_nascimento.strftime("%d/%m/%Y") if paciente.data_nascimento else "—" }}</dd>
+          </div>
+          <div><dt>Telefone</dt><dd>{{ paciente.telefone or "—" }}</dd></div>
+          <div><dt>Endereço</dt><dd>{{ paciente.endereco or "—" }}</dd></div>
+          <div><dt>CID</dt><dd>{{ paciente.cid or "—" }}</dd></div>
+          <div><dt>Responsável</dt>
+            <dd>{{ paciente.fisioterapeuta.nome if paciente.fisioterapeuta else "—" }}</dd>
+          </div>
+          <div><dt>Situação</dt><dd>{{ "Ativo" if paciente.ativo else "Inativo" }}</dd></div>
+        </dl>
+
+        {% if paciente.diagnostico %}
+        <p class="folha-texto"><strong>Diagnóstico:</strong> {{ paciente.diagnostico }}</p>
+        {% endif %}
+        {% if paciente.observacoes %}
+        <p class="folha-texto"><strong>Observações:</strong> {{ paciente.observacoes }}</p>
+        {% endif %}
+      </section>
+
+      <section class="folha-bloco">
+        <h3>Tratamentos</h3>
+        {% if ciclos %}
+        <table class="folha-tabela">
+          <thead>
+            <tr>
+              <th scope="col">Avaliação</th>
+              <th scope="col">Região</th>
+              <th scope="col">Modalidade</th>
+              <th scope="col">Sessões</th>
+              <th scope="col">Responsável</th>
+              <th scope="col">Situação</th>
+              <th scope="col">Alta</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ciclo in ciclos %}
+            <tr>
+              <td>{{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}</td>
+              <td>{{ ciclo.regiao|capitalize if ciclo.regiao else "—" }}</td>
+              <td>{{ ciclo.modalidade|capitalize }}</td>
+              <td>{{ ciclo.total_sessoes }}</td>
+              <td>{{ ciclo.fisioterapeuta.nome }}</td>
+              <td>{{ {"ATIVO": "Em tratamento", "CONCLUIDO": "Concluído",
+                      "ALTA": "Alta", "ABANDONO": "Abandono"}[ciclo.status] }}</td>
+              <td>{{ ciclo.data_alta.strftime("%d/%m/%Y") if ciclo.data_alta else "—" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="folha-texto">Nenhum ciclo de tratamento registrado.</p>
+        {% endif %}
+      </section>
+
+      <section class="folha-bloco">
+        <h3>Histórico de atendimentos e evoluções</h3>
+        <p class="folha-resumo">
+          {{ atendimentos|length }} atendimento{{ "s" if atendimentos|length != 1 }} ·
+          {{ realizados }} realizado{{ "s" if realizados != 1 }} ·
+          {{ faltas }} falta{{ "s" if faltas != 1 }}
+        </p>
+
+        {% if atendimentos %}
+        {% for item in atendimentos %}
+        <div class="folha-sessao">
+          <div class="folha-sessao__topo">
+            <strong>
+              {{ item.data.strftime("%d/%m/%Y") }} às {{ item.hora.strftime("%H:%M") }}
+            </strong>
+            <span>
+              {{ "Avaliação" if item.tipo == "AVALIACAO" else "Sessão" }}
+              {% if item.numero_sessao and item.ciclo %}
+                {{ item.numero_sessao }} de {{ item.ciclo.total_sessoes }}
+              {% endif %}
+              · {{ {"AGENDADO": "Agendado", "CONFIRMADO": "Confirmado",
+                    "REALIZADO": "Compareceu", "FALTOU": "Faltou"}[item.status] }}
+              · {{ item.fisioterapeuta.nome }}
+            </span>
+          </div>
+
+          {% set evolucao = evolucoes.get(item.id) %}
+          {% if evolucao %}
+          <p class="folha-texto"><strong>Conduta:</strong> {{ evolucao.descricao or "—" }}</p>
+          {% if evolucao.evolucao %}
+          <p class="folha-texto"><strong>Resposta do paciente:</strong> {{ evolucao.evolucao }}</p>
+          {% endif %}
+          {% if evolucao.observacoes %}
+          <p class="folha-texto"><strong>Observações:</strong> {{ evolucao.observacoes }}</p>
+          {% endif %}
+          {% elif item.status == "REALIZADO" %}
+          <p class="folha-texto folha-texto--pendente">Evolução não registrada.</p>
+          {% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="folha-texto">Nenhum atendimento registrado.</p>
+        {% endif %}
+      </section>
+
+      <footer class="folha-assinatura">
+        <div>
+          <span class="folha-linha"></span>
+          <p>Assinatura e carimbo do profissional</p>
+        </div>
+        <div>
+          <span class="folha-linha"></span>
+          <p>Data</p>
+        </div>
+      </footer>
+    </article>
+{% endblock %}

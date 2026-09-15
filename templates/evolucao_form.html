@@ -16,7 +16,12 @@
           {% else %}Registrar evolução{% endif %}
         </h1>
       </div>
-      <a class="button button--ghost" href="{{ url_for('ficha_paciente', paciente_id=agendamento.paciente_id) }}">Voltar à ficha</a>
+      <div class="table-actions">
+        <a class="button button--ghost" href="{{ url_for('ficha_paciente', paciente_id=agendamento.paciente_id) }}">Voltar à ficha</a>
+        {% if evolucao %}
+        <button class="button button--primary" type="button" onclick="window.print()">Imprimir</button>
+        {% endif %}
+      </div>
     </header>
 
     {% if somente_leitura %}
@@ -88,5 +93,65 @@
         <a class="button button--ghost" href="{{ url_for('ficha_paciente', paciente_id=agendamento.paciente_id) }}">Cancelar</a>
       </div>
     </form>
+    {% endif %}
+
+    {% if evolucao %}
+    <article class="folha print-only">
+      <header class="folha-cabecalho">
+        <div>
+          <p class="folha-marca">FisioBase</p>
+          <h2>Evolução clínica</h2>
+        </div>
+        <p class="folha-emissao">
+          {{ agendamento.data.strftime("%d/%m/%Y") }} às {{ agendamento.hora.strftime("%H:%M") }}
+        </p>
+      </header>
+
+      <section class="folha-bloco">
+        <dl class="folha-dados">
+          <div><dt>Paciente</dt><dd>{{ agendamento.paciente.nome }}</dd></div>
+          <div><dt>CPF</dt><dd>{{ agendamento.paciente.cpf or "—" }}</dd></div>
+          <div><dt>Atendimento</dt>
+            <dd>
+              {{ "Avaliação" if agendamento.tipo == "AVALIACAO" else "Sessão" }}
+              {% if agendamento.numero_sessao and agendamento.ciclo %}
+                {{ agendamento.numero_sessao }} de {{ agendamento.ciclo.total_sessoes }}
+              {% endif %}
+            </dd>
+          </div>
+          <div><dt>Profissional</dt><dd>{{ agendamento.fisioterapeuta.nome }}</dd></div>
+          {% if agendamento.ciclo %}
+          <div><dt>Região tratada</dt>
+            <dd>{{ agendamento.ciclo.regiao|capitalize if agendamento.ciclo.regiao else "—" }}</dd>
+          </div>
+          {% endif %}
+          {% if agendamento.paciente.cid %}
+          <div><dt>CID</dt><dd>{{ agendamento.paciente.cid }}</dd></div>
+          {% endif %}
+        </dl>
+      </section>
+
+      <section class="folha-bloco">
+        <h3>O que foi realizado</h3>
+        <p class="folha-texto">{{ evolucao.descricao or "—" }}</p>
+
+        <h3>Resposta do paciente</h3>
+        <p class="folha-texto">{{ evolucao.evolucao or "—" }}</p>
+
+        <h3>Observações</h3>
+        <p class="folha-texto">{{ evolucao.observacoes or "—" }}</p>
+      </section>
+
+      <footer class="folha-assinatura">
+        <div>
+          <span class="folha-linha"></span>
+          <p>{{ evolucao.fisioterapeuta.nome }}</p>
+        </div>
+        <div>
+          <span class="folha-linha"></span>
+          <p>Data</p>
+        </div>
+      </footer>
+    </article>
     {% endif %}
 {% endblock %}
