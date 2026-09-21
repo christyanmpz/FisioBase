@@ -98,6 +98,28 @@ ROTULOS_DE_STATUS = {
     "FALTOU": "Faltou",
     "FALTA_JUSTIFICADA": "Falta justificada",
 }
+# Nomes dos meses, para os filtros e os títulos dos relatórios.
+MESES = (
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+)
+# Como cada situação do ciclo de tratamento aparece na tela e na impressão.
+ROTULOS_DE_CICLO = {
+    "ATIVO": "Em tratamento",
+    "CONCLUIDO": "Concluído",
+    "ALTA": "Alta",
+    "ABANDONO": "Abandono",
+}
 # Expediente da clínica: 07:30 às 15:30, sessões de 30 min, encerrando às 16h.
 # O almoço fica fora da grade para todos; bloqueios por profissional virão
 # com a tela de disponibilidade (triagens fixas, reunião e horários fechados).
@@ -179,6 +201,8 @@ def create_app(test_config: dict | None = None) -> Flask:
             raise RuntimeError("test_config deve informar SECRET_KEY para os testes.")
 
     app.jinja_env.globals["ROTULOS_DE_STATUS"] = ROTULOS_DE_STATUS
+    app.jinja_env.globals["ROTULOS_DE_CICLO"] = ROTULOS_DE_CICLO
+    app.jinja_env.globals["MESES"] = MESES
     db.init_app(app)
     login_manager.init_app(app)
     csrf.init_app(app)
@@ -496,6 +520,34 @@ def register_routes(app: Flask) -> None:
 
         return None
 
+    def _data_digitada(texto):
+        """Entende a data de nascimento como a recepção costuma digitar.
+
+        Aceita 01/10/1983, 01-10-1983, 1983-10-01 e 01101983. Devolve None
+        quando o texto não é uma data — aí a busca segue só por nome e CPF.
+        """
+        limpo = texto.strip()
+        digitos = "".join(c for c in limpo if c.isdigit())
+        if len(digitos) == 8 and not any(c in limpo for c in "/-."):
+            limpo = f"{digitos[:2]}/{digitos[2:4]}/{digitos[4:]}"
+
+        for separador in ("/", "-", "."):
+            limpo = limpo.replace(separador, "/")
+
+        partes = limpo.split("/")
+        if len(partes) != 3 or not all(p.isdigit() for p in partes):
+            return None
+
+        if len(partes[0]) == 4:  # 1983/10/01
+            ano, mes, dia = partes
+        else:  # 01/10/1983
+            dia, mes, ano = partes
+
+        try:
+            return date(int(ano), int(mes), int(dia))
+        except ValueError:
+            return None
+
     @app.get("/pacientes")
     @login_required
     def listar_pacientes():
@@ -510,6 +562,9 @@ def register_routes(app: Flask) -> None:
             filtros = [Patient.nome.ilike(f"%{busca}%")]
             if somente_digitos:
                 filtros.append(Patient.cpf.ilike(f"%{somente_digitos}%"))
+            nascimento = _data_digitada(busca)
+            if nascimento is not None:
+                filtros.append(Patient.data_nascimento == nascimento)
             consulta = consulta.filter(db.or_(*filtros))
 
         try:
@@ -527,6 +582,48 @@ def register_routes(app: Flask) -> None:
             paginacao=paginacao,
             busca=busca,
         )
+
+    def _historico_por_ciclo(ciclos, atendimentos):
+        """Agrupa o histórico por ciclo de tratamento.
+
+        Misturados por data, os atendimentos de ciclos antigos se confundem
+        com os do tratamento atual. A clínica lê de cima para baixo: o ciclo
+        em andamento primeiro, depois os encerrados do mais recente para o
+        mais antigo. Dentro de cada ciclo as sessões ficam na ordem em que
+        aconteceram, como no cartão do paciente.
+
+        Atendimento sem ciclo — uma triagem avulsa, por exemplo — vai num
+        bloco final, para não sumir do prontuário.
+        """
+        por_ciclo = {}
+        avulsos = []
+        for item in atendimentos:
+            if item.ciclo_id is None:
+                avulsos.append(item)
+            else:
+                por_ciclo.setdefault(item.ciclo_id, []).append(item)
+
+        def peso(ciclo):
+            # Ativo primeiro; entre os encerrados, o mais recente antes.
+            return (ciclo.status != "ATIVO", -ciclo.data_avaliacao.toordinal())
+
+        blocos = [
+            {
+                "ciclo": ciclo,
+                "atendimentos": sorted(
+                    por_ciclo.get(ciclo.id, []), key=lambda i: (i.data, i.hora)
+                ),
+            }
+            for ciclo in sorted(ciclos, key=peso)
+        ]
+        if avulsos:
+            blocos.append(
+                {
+                    "ciclo": None,
+                    "atendimentos": sorted(avulsos, key=lambda i: (i.data, i.hora)),
+                }
+            )
+        return blocos
 
     @app.get("/pacientes/<int:paciente_id>")
     @login_required
@@ -569,6 +666,7 @@ def register_routes(app: Flask) -> None:
             "paciente_ficha.html",
             paciente=paciente,
             ciclos=ciclos,
+            blocos=_historico_por_ciclo(ciclos, atendimentos),
             atendimentos=atendimentos,
             acoes_evolucao=acoes_evolucao,
             total=len(atendimentos),
@@ -591,7 +689,7 @@ def register_routes(app: Flask) -> None:
 
         ciclos = (
             TreatmentCycle.query.filter_by(paciente_id=paciente.id)
-            .order_by(TreatmentCycle.data_avaliacao)
+            .order_by(TreatmentCycle.data_avaliacao.desc())
             .all()
         )
 
@@ -616,6 +714,7 @@ def register_routes(app: Flask) -> None:
             "prontuario_impressao.html",
             paciente=paciente,
             ciclos=ciclos,
+            blocos=_historico_por_ciclo(ciclos, atendimentos),
             atendimentos=atendimentos,
             evolucoes=evolucoes,
             realizados=realizados,
@@ -1536,10 +1635,63 @@ def register_routes(app: Flask) -> None:
     # Relatórios
     # ------------------------------------------------------------------
 
+    def _resumo_numerico(itens):
+        """Os mesmos números que a clínica soma hoje na mão, na planilha.
+
+        Separa sessão de triagem porque são coisas diferentes no setor: a
+        sessão é o tratamento, a triagem é o primeiro contato. Comparecimento
+        e falta justificada contam como atendimento; só a falta não avisada
+        entra como falta.
+        """
+
+        def contar(tipos, status):
+            return sum(1 for i in itens if i.tipo in tipos and i.status in status)
+
+        sessoes = ("SESSAO", "GRUPO")
+        triagens = ("AVALIACAO",)
+
+        sessoes_feitas = contar(sessoes, STATUS_DE_ATENDIMENTO)
+        triagens_feitas = contar(triagens, STATUS_DE_ATENDIMENTO)
+        faltas_sessoes = contar(sessoes, STATUS_DE_FALTA)
+        faltas_triagens = contar(triagens, STATUS_DE_FALTA)
+
+        return {
+            "sessoes": sessoes_feitas,
+            "triagens": triagens_feitas,
+            "faltas_sessoes": faltas_sessoes,
+            "faltas_triagens": faltas_triagens,
+            "atendimentos": sessoes_feitas + triagens_feitas,
+            "faltas": faltas_sessoes + faltas_triagens,
+        }
+
+    def _intervalo_do_relatorio(periodo, mes, ano, referencia):
+        """Traduz o filtro escolhido em (início, fim, rótulo para a tela).
+
+        O fim é sempre exclusivo: o primeiro dia depois do período.
+        """
+        if periodo == "semana":
+            segunda = referencia - timedelta(days=referencia.weekday())
+            return (
+                segunda,
+                segunda + timedelta(days=7),
+                f"Semana de {segunda.strftime('%d/%m')} a "
+                f"{(segunda + timedelta(days=6)).strftime('%d/%m/%Y')}",
+            )
+        if periodo == "ano":
+            return date(ano, 1, 1), date(ano + 1, 1, 1), f"Ano de {ano}"
+
+        inicio = date(ano, mes, 1)
+        fim = date(ano + 1, 1, 1) if mes == 12 else date(ano, mes + 1, 1)
+        return inicio, fim, f"{MESES[mes - 1]} de {ano}"
+
     @app.get("/relatorios")
     @login_required
     def relatorios():
         dia_atual = hoje()
+        periodo = request.args.get("periodo", "mes").strip().lower()
+        if periodo not in ("semana", "mes", "ano"):
+            periodo = "mes"
+
         try:
             mes = int(request.args.get("mes", dia_atual.month))
             ano = int(request.args.get("ano", dia_atual.year))
@@ -1549,8 +1701,19 @@ def register_routes(app: Flask) -> None:
         if not 1 <= mes <= 12:
             mes = dia_atual.month
 
-        inicio = date(ano, mes, 1)
-        fim = date(ano + 1, 1, 1) if mes == 12 else date(ano, mes + 1, 1)
+        try:
+            referencia = date.fromisoformat(request.args.get("data", "").strip())
+        except ValueError:
+            referencia = dia_atual
+
+        if periodo == "semana":
+            # A semana escolhida manda no ano do total anual, senão o rodapé
+            # some do período que está na tela.
+            ano = referencia.year
+
+        inicio, fim, rotulo_do_periodo = _intervalo_do_relatorio(
+            periodo, mes, ano, referencia
+        )
 
         def no_periodo(consulta, campo):
             return consulta.filter(campo >= inicio, campo < fim)
@@ -1594,13 +1757,27 @@ def register_routes(app: Flask) -> None:
         por_profissional = {}
         if current_user.perfil == ADMIN_PROFILE:
             for item in itens:
-                if item.status != "REALIZADO":
+                if item.status not in STATUS_DE_ATENDIMENTO:
                     continue
                 nome = item.fisioterapeuta.nome
                 por_profissional[nome] = por_profissional.get(nome, 0) + 1
 
+        # A clínica fecha o ano somando os meses; o sistema já entrega a conta.
+        do_ano = Appointment.query.filter(
+            Appointment.data >= date(ano, 1, 1),
+            Appointment.data < date(ano + 1, 1, 1),
+        )
+        if current_user.perfil != ADMIN_PROFILE:
+            do_ano = do_ano.filter(Appointment.fisioterapeuta_id == current_user.id)
+
         return render_template(
             "relatorios.html",
+            periodo=periodo,
+            rotulo_do_periodo=rotulo_do_periodo,
+            inicio=inicio,
+            fim=fim - timedelta(days=1),
+            resumo=_resumo_numerico(itens),
+            resumo_anual=_resumo_numerico(do_ano.all()),
             mes=mes,
             ano=ano,
             anos=range(dia_atual.year - 2, dia_atual.year + 2),

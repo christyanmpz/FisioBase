@@ -8,23 +8,37 @@
 {% endblock %}
 
 {% block body %}
-    <header class="topbar">
+    <header class="topbar no-print">
       <div>
         <p class="breadcrumb">Gestão <span>/</span> Relatórios</p>
-        <h1>Relatório mensal</h1>
+        <h1>{{ rotulo_do_periodo }}</h1>
       </div>
+      <button class="button button--primary" type="button" onclick="window.print()">Imprimir resumo</button>
     </header>
 
-    <form method="get" class="day-nav">
+    <form method="get" class="day-nav no-print">
+      <label class="sr-only" for="periodo">Período</label>
+      <select id="periodo" name="periodo"
+              style="padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--white);">
+        {% for valor, nome in [("semana","Semanal"),("mes","Mensal"),("ano","Anual")] %}
+        <option value="{{ valor }}" {% if valor == periodo %}selected{% endif %}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+
+      {% if periodo == "semana" %}
+      <label class="sr-only" for="data">Semana</label>
+      <input id="data" name="data" type="date" value="{{ inicio.isoformat() }}"
+             style="padding:8px 12px; border:1px solid var(--line); border-radius:9px;">
+      {% else %}
+      {% if periodo == "mes" %}
       <label class="sr-only" for="mes">Mês</label>
       <select id="mes" name="mes"
               style="padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--white);">
-        {% for numero, nome in [(1,"Janeiro"),(2,"Fevereiro"),(3,"Março"),(4,"Abril"),
-                                (5,"Maio"),(6,"Junho"),(7,"Julho"),(8,"Agosto"),
-                                (9,"Setembro"),(10,"Outubro"),(11,"Novembro"),(12,"Dezembro")] %}
-        <option value="{{ numero }}" {% if numero == mes %}selected{% endif %}>{{ nome }}</option>
+        {% for nome in MESES %}
+        <option value="{{ loop.index }}" {% if loop.index == mes %}selected{% endif %}>{{ nome }}</option>
         {% endfor %}
       </select>
+      {% endif %}
 
       <label class="sr-only" for="ano">Ano</label>
       <select id="ano" name="ano"
@@ -33,11 +47,65 @@
         <option value="{{ numero }}" {% if numero == ano %}selected{% endif %}>{{ numero }}</option>
         {% endfor %}
       </select>
+      {% endif %}
 
       <button class="button button--ghost button--small" type="submit">Atualizar</button>
     </form>
 
-    <section class="stats-grid" aria-label="Resumo do período">
+    <p class="panel-note print-only">FisioBase — resumo de atendimentos</p>
+
+    <section class="panel" aria-labelledby="titulo-resumo">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Resumo numérico</p>
+          <h2 id="titulo-resumo">{{ rotulo_do_periodo }}</h2>
+        </div>
+        <span class="panel-count no-print">
+          {{ inicio.strftime("%d/%m/%Y") }} a {{ fim.strftime("%d/%m/%Y") }}
+        </span>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Atendimentos e faltas do período, com a somatória do ano</caption>
+          <thead>
+            <tr>
+              <th scope="col">Tipo de atendimento</th>
+              <th scope="col">Realizados</th>
+              <th scope="col">Faltas</th>
+              <th scope="col">No ano de {{ ano }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Sessões (individuais e grupo)</th>
+              <td><strong>{{ resumo.sessoes }}</strong></td>
+              <td class="muted-cell">{{ resumo.faltas_sessoes }}</td>
+              <td class="muted-cell">{{ resumo_anual.sessoes }}</td>
+            </tr>
+            <tr>
+              <th scope="row">Avaliações / triagens</th>
+              <td><strong>{{ resumo.triagens }}</strong></td>
+              <td class="muted-cell">{{ resumo.faltas_triagens }}</td>
+              <td class="muted-cell">{{ resumo_anual.triagens }}</td>
+            </tr>
+            <tr>
+              <th scope="row">Total de atendimentos</th>
+              <td><strong>{{ resumo.atendimentos }}</strong></td>
+              <td class="muted-cell">{{ resumo.faltas }}</td>
+              <td><strong>{{ resumo_anual.atendimentos }}</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="panel-note">
+        Comparecimento e falta justificada contam como atendimento realizado;
+        só a falta não avisada entra na coluna de faltas.
+      </p>
+    </section>
+
+    <section class="stats-grid no-print" aria-label="Resumo do período" style="margin-top:17px;">
       <article class="stat-card">
         <div class="stat-card__top">
           <span class="stat-label">Atendimentos realizados</span>
@@ -60,11 +128,11 @@
           <span class="stat-icon stat-icon--blue" aria-hidden="true">◎</span>
         </div>
         <strong class="stat-value">{{ ciclos_abertos }}</strong>
-        <span class="stat-caption">avaliações no mês</span>
+        <span class="stat-caption">avaliações no período</span>
       </article>
     </section>
 
-    <section class="content-grid">
+    <section class="content-grid no-print">
       <article class="panel panel--wide">
         <div class="panel-heading">
           <div>
@@ -94,7 +162,7 @@
       </aside>
     </section>
 
-    <section class="content-grid" style="margin-top:17px;">
+    <section class="content-grid no-print" style="margin-top:17px;">
       <article class="panel panel--wide">
         <div class="panel-heading">
           <div>

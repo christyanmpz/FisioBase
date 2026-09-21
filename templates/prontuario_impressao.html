@@ -72,8 +72,7 @@
               <td>{{ ciclo.modalidade|capitalize }}</td>
               <td>{{ ciclo.total_sessoes }}</td>
               <td>{{ ciclo.fisioterapeuta.nome }}</td>
-              <td>{{ {"ATIVO": "Em tratamento", "CONCLUIDO": "Concluído",
-                      "ALTA": "Alta", "ABANDONO": "Abandono"}[ciclo.status] }}</td>
+              <td>{{ ROTULOS_DE_CICLO.get(ciclo.status, ciclo.status) }}</td>
               <td>{{ ciclo.data_alta.strftime("%d/%m/%Y") if ciclo.data_alta else "—" }}</td>
             </tr>
             {% endfor %}
@@ -93,35 +92,51 @@
         </p>
 
         {% if atendimentos %}
-        {% for item in atendimentos %}
-        <div class="folha-sessao">
-          <div class="folha-sessao__topo">
-            <strong>
-              {{ item.data.strftime("%d/%m/%Y") }} às {{ item.hora.strftime("%H:%M") }}
-            </strong>
-            <span>
-              {{ "Avaliação" if item.tipo == "AVALIACAO" else "Sessão" }}
-              {% if item.numero_sessao and item.ciclo %}
-                {{ item.numero_sessao }} de {{ item.ciclo.total_sessoes }}
-              {% endif %}
-              · {{ ROTULOS_DE_STATUS.get(item.status, item.status) }}
-              · {{ item.fisioterapeuta.nome }}
-            </span>
-          </div>
+        {% for bloco in blocos %}
+        {% if bloco.atendimentos %}
+        <div class="folha-ciclo">
+          <h4 class="folha-ciclo__titulo">
+            {% if bloco.ciclo %}
+              Tratamento de {{ bloco.ciclo.regiao|capitalize if bloco.ciclo.regiao else "região não informada" }}
+              · avaliação em {{ bloco.ciclo.data_avaliacao.strftime("%d/%m/%Y") }}
+              · {{ ROTULOS_DE_CICLO.get(bloco.ciclo.status, bloco.ciclo.status) }}
+            {% else %}
+              Atendimentos fora de ciclo
+            {% endif %}
+          </h4>
 
-          {% set evolucao = evolucoes.get(item.id) %}
-          {% if evolucao %}
-          <p class="folha-texto"><strong>Conduta:</strong> {{ evolucao.descricao or "—" }}</p>
-          {% if evolucao.evolucao %}
-          <p class="folha-texto"><strong>Resposta do paciente:</strong> {{ evolucao.evolucao }}</p>
-          {% endif %}
-          {% if evolucao.observacoes %}
-          <p class="folha-texto"><strong>Observações:</strong> {{ evolucao.observacoes }}</p>
-          {% endif %}
-          {% elif item.status == "REALIZADO" %}
-          <p class="folha-texto folha-texto--pendente">Evolução não registrada.</p>
-          {% endif %}
+          {% for item in bloco.atendimentos %}
+          <div class="folha-sessao">
+            <div class="folha-sessao__topo">
+              <strong>
+                {{ item.data.strftime("%d/%m/%Y") }} às {{ item.hora.strftime("%H:%M") }}
+              </strong>
+              <span>
+                {{ "Avaliação" if item.tipo == "AVALIACAO" else "Sessão" }}
+                {% if item.numero_sessao and item.ciclo %}
+                  {{ item.numero_sessao }} de {{ item.ciclo.total_sessoes }}
+                {% endif %}
+                · {{ ROTULOS_DE_STATUS.get(item.status, item.status) }}
+                · {{ item.fisioterapeuta.nome }}
+              </span>
+            </div>
+
+            {% set evolucao = evolucoes.get(item.id) %}
+            {% if evolucao %}
+            <p class="folha-texto"><strong>Conduta:</strong> {{ evolucao.descricao or "—" }}</p>
+            {% if evolucao.evolucao %}
+            <p class="folha-texto"><strong>Resposta do paciente:</strong> {{ evolucao.evolucao }}</p>
+            {% endif %}
+            {% if evolucao.observacoes %}
+            <p class="folha-texto"><strong>Observações:</strong> {{ evolucao.observacoes }}</p>
+            {% endif %}
+            {% elif item.status == "REALIZADO" %}
+            <p class="folha-texto folha-texto--pendente">Evolução não registrada.</p>
+            {% endif %}
+          </div>
+          {% endfor %}
         </div>
+        {% endif %}
         {% endfor %}
         {% else %}
         <p class="folha-texto">Nenhum atendimento registrado.</p>

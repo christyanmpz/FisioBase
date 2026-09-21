@@ -13,9 +13,9 @@
     </header>
 
         <form method="get" class="day-nav" role="search">
-      <label class="sr-only" for="q">Buscar paciente por nome ou CPF</label>
+      <label class="sr-only" for="q">Buscar paciente por nome, CPF ou data de nascimento</label>
       <input id="q" name="q" type="search" value="{{ busca }}"
-             placeholder="Buscar por nome ou CPF"
+             placeholder="Buscar por nome, CPF ou nascimento (01/10/1983)"
              style="flex:1; max-width:340px; padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--white);">
       <button class="button button--ghost button--small" type="submit">Buscar</button>
       {% if busca %}

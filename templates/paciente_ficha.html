@@ -53,54 +53,78 @@
         </div>
 
         {% if atendimentos %}
-        <div class="table-wrap">
-          <table>
-            <caption class="sr-only">Histórico de atendimentos do paciente</caption>
-            <thead>
-              <tr>
-                <th scope="col">Data</th>
-                <th scope="col">Hora</th>
-                <th scope="col">Tipo</th>
-                <th scope="col">Sessão</th>
-                <th scope="col">Profissional</th>
-                <th scope="col">Situação</th>
-                <th scope="col">Evolução</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for item in atendimentos %}
-              <tr>
-                <td><strong>{{ item.data.strftime("%d/%m/%Y") }}</strong></td>
-                <td class="muted-cell">{{ item.hora.strftime("%H:%M") }}</td>
-                <td>{{ "Avaliação" if item.tipo == "AVALIACAO" else "Sessão" }}</td>
-                <td class="muted-cell">
-                  {% if item.numero_sessao and item.ciclo %}
-                    {{ item.numero_sessao }} de {{ item.ciclo.total_sessoes }}
-                  {% else %}—{% endif %}
-                </td>
-                <td class="muted-cell">{{ item.fisioterapeuta.nome }}</td>
-                <td>
-                  <span class="role-badge role-badge--{{ 'fisioterapeuta' if item.status == 'REALIZADO' else 'admin' }}">
-                    {{ ROTULOS_DE_STATUS.get(item.status, item.status) }}
-                  </span>
-                </td>
+        {% for bloco in blocos %}
+        {% if bloco.atendimentos %}
+        <div class="historico-ciclo">
+          <p class="historico-ciclo__titulo">
+            {% if bloco.ciclo %}
+              <strong>{{ bloco.ciclo.regiao|capitalize if bloco.ciclo.regiao else "Região não informada" }}</strong>
+              <span class="muted-cell">
+                avaliação em {{ bloco.ciclo.data_avaliacao.strftime("%d/%m/%Y") }} ·
+                {{ bloco.atendimentos|length }} de {{ bloco.ciclo.total_sessoes }} sessões
+              </span>
+              <span class="role-badge role-badge--{{ 'fisioterapeuta' if bloco.ciclo.status == 'ATIVO' else 'admin' }}">
+                {{ ROTULOS_DE_CICLO.get(bloco.ciclo.status, bloco.ciclo.status) }}
+              </span>
+            {% else %}
+              <strong>Atendimentos fora de ciclo</strong>
+            {% endif %}
+          </p>
 
-                <td>
-                  {% set acao = acoes_evolucao[item.id] %}
-                  {% if acao %}
-                  <a href="{{ url_for('registrar_evolucao', agendamento_id=item.id) }}">
-                    {{ {"registrar": "Registrar", "editar": "Editar", "ver": "Ver"}[acao] }}
-                  </a>
-                  {% else %}
-                  <span class="muted-cell">—</span>
-                  {% endif %}
-                </td>
+          <div class="table-wrap">
+            <table>
+              <caption class="sr-only">
+                Atendimentos do tratamento iniciado em
+                {{ bloco.ciclo.data_avaliacao.strftime("%d/%m/%Y") if bloco.ciclo else "data não informada" }}
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Data</th>
+                  <th scope="col">Hora</th>
+                  <th scope="col">Tipo</th>
+                  <th scope="col">Sessão</th>
+                  <th scope="col">Profissional</th>
+                  <th scope="col">Situação</th>
+                  <th scope="col">Evolução</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in bloco.atendimentos %}
+                <tr>
+                  <td><strong>{{ item.data.strftime("%d/%m/%Y") }}</strong></td>
+                  <td class="muted-cell">{{ item.hora.strftime("%H:%M") }}</td>
+                  <td>{{ "Avaliação" if item.tipo == "AVALIACAO" else "Sessão" }}</td>
+                  <td class="muted-cell">
+                    {% if item.numero_sessao and item.ciclo %}
+                      {{ item.numero_sessao }} de {{ item.ciclo.total_sessoes }}
+                    {% else %}—{% endif %}
+                  </td>
+                  <td class="muted-cell">{{ item.fisioterapeuta.nome }}</td>
+                  <td>
+                    <span class="role-badge role-badge--{{ 'fisioterapeuta' if item.status == 'REALIZADO' else 'admin' }}">
+                      {{ ROTULOS_DE_STATUS.get(item.status, item.status) }}
+                    </span>
+                  </td>
 
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+                  <td>
+                    {% set acao = acoes_evolucao[item.id] %}
+                    {% if acao %}
+                    <a href="{{ url_for('registrar_evolucao', agendamento_id=item.id) }}">
+                      {{ {"registrar": "Registrar", "editar": "Editar", "ver": "Ver"}[acao] }}
+                    </a>
+                    {% else %}
+                    <span class="muted-cell">—</span>
+                    {% endif %}
+                  </td>
+
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         </div>
+        {% endif %}
+        {% endfor %}
         {% else %}
         <div class="empty-state">
           <div class="empty-state__icon" aria-hidden="true">◷</div>
