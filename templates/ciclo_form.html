@@ -1,13 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}Novo ciclo · FisioBase{% endblock %}
+{% set edicao = ciclo is defined and ciclo %}
+
+{% block title %}{{ "Editar ciclo" if edicao else "Novo ciclo" }} · FisioBase{% endblock %}
 {% block body_class %}app-page{% endblock %}
 
 {% block body %}
     <header class="topbar">
       <div>
         <p class="breadcrumb">Pacientes <span>/</span> {{ paciente.nome }}</p>
-        <h1>Novo ciclo de tratamento</h1>
+        <h1>{{ "Editar ciclo de tratamento" if edicao else "Novo ciclo de tratamento" }}</h1>
       </div>
     </header>
 
@@ -16,43 +18,74 @@
 
       <div class="field">
         <label for="data_avaliacao">Data da avaliação</label>
-        <input id="data_avaliacao" name="data_avaliacao" type="date" required autofocus>
+        <input id="data_avaliacao" name="data_avaliacao" type="date" required
+               {% if not edicao %}autofocus{% endif %}
+               value="{{ ciclo.data_avaliacao.isoformat() if edicao else '' }}">
       </div>
 
       <div class="field">
         <label for="regiao">Região</label>
         <select id="regiao" name="regiao" required>
           <option value="">Selecione</option>
-          <option value="OMBRO">Ombro</option>
-          <option value="JOELHO">Joelho</option>
-          <option value="COLUNA">Coluna</option>
-          <option value="OUTRO">Outro</option>
+          {% for valor, nome in [("OMBRO","Ombro"),("JOELHO","Joelho"),
+                                 ("COLUNA","Coluna"),("OUTRO","Outro")] %}
+          <option value="{{ valor }}"
+                  {% if edicao and ciclo.regiao == valor %}selected{% endif %}>{{ nome }}</option>
+          {% endfor %}
         </select>
+        <small>É o que liga o paciente ao grupo certo e alimenta o relatório.</small>
+      </div>
+
+      <div class="field">
+        <label for="cid">CID</label>
+        <input id="cid" name="cid" type="text" maxlength="30"
+               placeholder="M54.5"
+               value="{{ ciclo.cid if edicao and ciclo.cid else '' }}">
+        <small class="field-hint">Código do diagnóstico que justifica este tratamento.</small>
+      </div>
+
+      <div class="field">
+        <label for="diagnostico">Diagnóstico</label>
+        <textarea id="diagnostico" name="diagnostico" rows="3"
+                  placeholder="Dor lombar baixa">{{ ciclo.diagnostico if edicao and ciclo.diagnostico else '' }}</textarea>
+        <small class="field-hint">Justificativa clínica da abertura do ciclo, como veio do médico.</small>
       </div>
 
       <div class="field">
         <label for="modalidade">Modalidade</label>
         <select id="modalidade" name="modalidade" required>
-          <option value="INDIVIDUAL">Individual</option>
-          <option value="GRUPO">Grupo</option>
+          {% for valor, nome in [("INDIVIDUAL","Individual"),("GRUPO","Grupo")] %}
+          <option value="{{ valor }}"
+                  {% if edicao and ciclo.modalidade == valor %}selected{% endif %}>{{ nome }}</option>
+          {% endfor %}
         </select>
       </div>
 
       <div class="field">
         <label for="total_sessoes">Número de sessões</label>
         <input id="total_sessoes" name="total_sessoes" type="number"
-               value="10" min="1" max="30" required>
+               value="{{ ciclo.total_sessoes if edicao else 10 }}" min="1" max="30" required>
         <small>O padrão da clínica é um ciclo de 10 sessões.</small>
       </div>
 
       <div class="field">
         <label for="observacoes">Observações da avaliação</label>
-        <textarea id="observacoes" name="observacoes" rows="4"></textarea>
+        <textarea id="observacoes" name="observacoes" rows="4">{{ ciclo.observacoes if edicao and ciclo.observacoes else '' }}</textarea>
       </div>
 
       <div class="form-actions">
-        <button class="button button--primary" type="submit">Abrir ciclo</button>
+        <button class="button button--primary" type="submit">
+          {{ "Salvar alterações" if edicao else "Abrir ciclo" }}
+        </button>
         <a class="button button--ghost" href="{{ url_for('listar_ciclos', paciente_id=paciente.id) }}">Cancelar</a>
       </div>
     </form>
+
+    {% if edicao %}
+    <p class="panel-note">
+      Para mudar o dia da semana e o horário das próximas sessões, use
+      <a href="{{ url_for('remarcar_ciclo', ciclo_id=ciclo.id) }}">Remarcar sessões</a>.
+      As sessões que já aconteceram não são alteradas.
+    </p>
+    {% endif %}
 {% endblock %}

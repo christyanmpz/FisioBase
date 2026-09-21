@@ -506,8 +506,17 @@ def register_routes(app: Flask) -> None:
         paciente.telefone = request.form.get("telefone", "").strip() or None
         paciente.email = request.form.get("email", "").strip() or None
         paciente.endereco = request.form.get("endereco", "").strip() or None
-        paciente.cid = request.form.get("cid", "").strip() or None
-        paciente.diagnostico = request.form.get("diagnostico", "").strip() or None
+
+        # Cartão do cidadão: identificação do município, não do paciente em si.
+        # Nem todo paciente tem, então o campo é opcional — mas quando vem
+        # preenchido precisa ser um número de 10 a 15 dígitos.
+        cartao = "".join(
+            c for c in request.form.get("cartao_cidadao", "") if c.isdigit()
+        )
+        if cartao and not 10 <= len(cartao) <= 15:
+            return "O número do cartão cidadão deve ter de 10 a 15 dígitos."
+        paciente.cartao_cidadao = cartao or None
+
         paciente.observacoes = request.form.get("observacoes", "").strip() or None
 
         if current_user.perfil == ADMIN_PROFILE:
@@ -562,6 +571,7 @@ def register_routes(app: Flask) -> None:
             filtros = [Patient.nome.ilike(f"%{busca}%")]
             if somente_digitos:
                 filtros.append(Patient.cpf.ilike(f"%{somente_digitos}%"))
+                filtros.append(Patient.cartao_cidadao.ilike(f"%{somente_digitos}%"))
             nascimento = _data_digitada(busca)
             if nascimento is not None:
                 filtros.append(Patient.data_nascimento == nascimento)
@@ -946,6 +956,8 @@ def register_routes(app: Flask) -> None:
                 paciente_id=paciente.id,
                 fisioterapeuta_id=responsavel_id,
                 regiao=regiao,
+                cid=request.form.get("cid", "").strip().upper() or None,
+                diagnostico=request.form.get("diagnostico", "").strip() or None,
                 modalidade=modalidade,
                 data_avaliacao=data_avaliacao,
                 total_sessoes=sessoes,
@@ -958,6 +970,88 @@ def register_routes(app: Flask) -> None:
             return redirect(url_for("listar_ciclos", paciente_id=paciente.id))
 
         return form()
+
+    @app.route("/ciclos/<int:ciclo_id>/editar", methods=["GET", "POST"])
+    @login_required
+    def editar_ciclo(ciclo_id: int):
+        """Corrige os dados do ciclo sem mexer nas sessões já agendadas."""
+        ciclo = db.session.get(TreatmentCycle, ciclo_id)
+        if ciclo is None:
+            abort(404)
+        if not ciclo.acessivel_por(current_user):
+            abort(403)
+
+        paciente = ciclo.paciente
+
+        def form(codigo=200):
+            return (
+                render_template(
+                    "ciclo_form.html",
+                    ciclo=ciclo,
+                    paciente=paciente,
+                    fisioterapeutas=_fisioterapeutas_ativos(),
+                ),
+                codigo,
+            )
+
+        if request.method == "GET":
+            return form()
+
+        regiao = request.form.get("regiao", "").strip().upper()
+        modalidade = request.form.get("modalidade", "INDIVIDUAL").strip().upper()
+
+        if regiao not in REGIOES:
+            flash("Selecione uma região válida.", "error")
+            return form(400)
+
+        if modalidade not in MODALIDADES:
+            flash("Modalidade inválida.", "error")
+            return form(400)
+
+        try:
+            data_avaliacao = date.fromisoformat(
+                request.form.get("data_avaliacao", "").strip()
+            )
+        except ValueError:
+            flash("Informe uma data de avaliação válida.", "error")
+            return form(400)
+
+        try:
+            sessoes = int(request.form.get("total_sessoes", "10").strip())
+        except ValueError:
+            flash("Número de sessões inválido.", "error")
+            return form(400)
+
+        if not 1 <= sessoes <= 30:
+            flash("O número de sessões deve estar entre 1 e 30.", "error")
+            return form(400)
+
+        # Diminuir o total abaixo do que já foi marcado deixaria o ciclo com
+        # mais sessões na agenda do que no papel.
+        ja_agendadas = Appointment.query.filter(
+            Appointment.ciclo_id == ciclo.id,
+            Appointment.tipo == "SESSAO",
+            Appointment.status != "CANCELADO",
+        ).count()
+        if sessoes < ja_agendadas:
+            flash(
+                f"Este ciclo já tem {ja_agendadas} sessões agendadas. "
+                "Cancele as que sobram antes de reduzir o total.",
+                "error",
+            )
+            return form(400)
+
+        ciclo.regiao = regiao
+        ciclo.cid = request.form.get("cid", "").strip().upper() or None
+        ciclo.diagnostico = request.form.get("diagnostico", "").strip() or None
+        ciclo.modalidade = modalidade
+        ciclo.data_avaliacao = data_avaliacao
+        ciclo.total_sessoes = sessoes
+        ciclo.observacoes = request.form.get("observacoes", "").strip() or None
+        db.session.commit()
+
+        flash("Ciclo atualizado.", "success")
+        return redirect(url_for("listar_ciclos", paciente_id=paciente.id))
 
     def _feriados_no_periodo(inicio, fim):
         """Datas a pular: feriados nacionais, municipais e pontos facultativos."""
@@ -1125,6 +1219,134 @@ def register_routes(app: Flask) -> None:
         flash(f"{len(datas)} sessão(ões) agendada(s).", "success")
         return redirect(url_for("cartao_do_ciclo", ciclo_id=ciclo.id))
 
+    @app.route("/ciclos/<int:ciclo_id>/remarcar", methods=["GET", "POST"])
+    @login_required
+    def remarcar_ciclo(ciclo_id: int):
+        """Muda o dia da semana e o horário do restante do ciclo.
+
+        O paciente arrumou outro compromisso e não pode mais na terça: em vez
+        de mexer sessão por sessão, o setor remarca de uma vez o que ainda não
+        aconteceu. Sessão já realizada, falta e cancelamento ficam como estão.
+        """
+        ciclo = db.session.get(TreatmentCycle, ciclo_id)
+        if ciclo is None:
+            abort(404)
+        if not ciclo.acessivel_por(current_user):
+            abort(403)
+
+        pendentes = (
+            Appointment.query.filter(
+                Appointment.ciclo_id == ciclo.id,
+                Appointment.tipo == "SESSAO",
+                Appointment.status.in_(("AGENDADO", "CONFIRMADO")),
+                Appointment.data >= hoje(),
+            )
+            .order_by(Appointment.data, Appointment.hora)
+            .all()
+        )
+
+        def form(codigo=200, valores=None):
+            return (
+                render_template(
+                    "remarcar_ciclo.html",
+                    ciclo=ciclo,
+                    paciente=ciclo.paciente,
+                    pendentes=pendentes,
+                    horarios=HORARIOS,
+                    dias=[(i, WEEKDAY_NAMES[i]) for i in DIAS_DE_ATENDIMENTO],
+                    valores=valores or {},
+                    hoje=hoje(),
+                ),
+                codigo,
+            )
+
+        if request.method == "GET":
+            return form()
+
+        valores = {
+            "inicio": request.form.get("inicio", "").strip(),
+            "hora": request.form.get("hora", "").strip(),
+            "dias": request.form.getlist("dias"),
+        }
+
+        if ciclo.status != "ATIVO":
+            flash("Só é possível remarcar as sessões de um ciclo ativo.", "error")
+            return form(400, valores)
+
+        if not pendentes:
+            flash("Este ciclo não tem sessões futuras para remarcar.", "error")
+            return form(400, valores)
+
+        try:
+            inicio = date.fromisoformat(valores["inicio"])
+        except ValueError:
+            flash("Informe a partir de que data remarcar.", "error")
+            return form(400, valores)
+
+        if inicio < hoje():
+            flash("A data de início não pode estar no passado.", "error")
+            return form(400, valores)
+
+        if valores["hora"] not in HORARIOS:
+            flash("Escolha um horário do expediente.", "error")
+            return form(400, valores)
+        hora = time.fromisoformat(valores["hora"])
+
+        try:
+            dias_da_semana = {int(d) for d in valores["dias"]}
+        except ValueError:
+            dias_da_semana = set()
+        if not dias_da_semana or not dias_da_semana <= set(DIAS_DE_ATENDIMENTO):
+            flash("Escolha ao menos um dia da semana, de segunda a sexta.", "error")
+            return form(400, valores)
+
+        datas, pulados = _datas_das_sessoes(
+            inicio,
+            dias_da_semana,
+            len(pendentes),
+            _feriados_no_periodo(inicio, inicio + timedelta(days=400)),
+        )
+
+        if len(datas) < len(pendentes):
+            flash(
+                "Não foi possível gerar todas as datas. Reveja os dias da semana.",
+                "error",
+            )
+            return form(400, valores)
+
+        # As sessões que estão sendo movidas não ocupam o horário de destino.
+        movidas = {sessao.id for sessao in pendentes}
+        ocupados = [
+            data
+            for data in datas
+            if not _horario_disponivel(
+                ciclo.fisioterapeuta_id, data, hora, ignorar_ids=movidas
+            )
+        ]
+        if ocupados:
+            primeiro = ocupados[0].strftime("%d/%m/%Y")
+            flash(
+                f"O horário {valores['hora']} já está cheio em {primeiro}. "
+                "Escolha outro horário ou outros dias.",
+                "error",
+            )
+            return form(400, valores)
+
+        for sessao, data in zip(pendentes, datas):
+            sessao.data = data
+            sessao.hora = hora
+        db.session.commit()
+
+        if pulados:
+            nomes = ", ".join(f"{d.strftime('%d/%m')} ({nome})" for d, nome in pulados)
+            flash(f"Datas puladas por feriado: {nomes}.", "info")
+        flash(
+            f"{len(pendentes)} sessão(ões) remarcada(s) a partir de "
+            f"{datas[0].strftime('%d/%m/%Y')}.",
+            "success",
+        )
+        return redirect(url_for("cartao_do_ciclo", ciclo_id=ciclo.id))
+
     @app.get("/ciclos/<int:ciclo_id>/cartao")
     @login_required
     def cartao_do_ciclo(ciclo_id: int):
@@ -1204,8 +1426,14 @@ def register_routes(app: Flask) -> None:
     # Agenda
     # ------------------------------------------------------------------
 
-    def _horario_disponivel(fisioterapeuta_id, data_agenda, hora, ignorar_id=None):
-        """Verifica o limite de 2 pacientes por profissional no mesmo horário."""
+    def _horario_disponivel(
+        fisioterapeuta_id, data_agenda, hora, ignorar_id=None, ignorar_ids=()
+    ):
+        """Verifica o limite de 2 pacientes por profissional no mesmo horário.
+
+        `ignorar_ids` serve para remarcar em lote: as sessões que estão sendo
+        movidas não podem contar como ocupando o horário para onde vão.
+        """
         consulta = Appointment.query.filter(
             Appointment.fisioterapeuta_id == fisioterapeuta_id,
             Appointment.data == data_agenda,
@@ -1215,6 +1443,8 @@ def register_routes(app: Flask) -> None:
         )
         if ignorar_id is not None:
             consulta = consulta.filter(Appointment.id != ignorar_id)
+        if ignorar_ids:
+            consulta = consulta.filter(Appointment.id.notin_(tuple(ignorar_ids)))
         return consulta.count() < LIMITE_POR_HORARIO
 
     def _somente_ciclos_ativos(consulta):

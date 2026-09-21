@@ -94,9 +94,10 @@ Profissionais com acesso ao sistema.
 | `cpf` | varchar(14) | Único; validado pelos dígitos verificadores |
 | `data_nascimento` | date | |
 | `telefone`, `email`, `endereco` | varchar | Contato |
-| `cid` | varchar(30) | Código internacional de doenças |
-| `diagnostico`, `observacoes` | text | |
+| `cartao_cidadao` | varchar(15) | Identificação do município; 10 a 15 dígitos |
+| `observacoes` | text | |
 | `ativo` | boolean | Desativação em vez de exclusão |
+| `cid`, `diagnostico` | varchar(30), text | Legado. Migrados para `ciclos_tratamento` na etapa 3; ficam no banco como histórico e não são mais escritos |
 | `fisioterapeuta_id` | integer | Profissional responsável |
 
 ### ciclos_tratamento
@@ -108,7 +109,9 @@ mesmo tempo, por exemplo joelho e coluna.
 | --- | --- | --- |
 | `paciente_id` | integer | |
 | `fisioterapeuta_id` | integer | Herdado do paciente, mas editável pelo admin |
-| `regiao` | varchar(30) | Ombro, joelho, coluna ou outro |
+| `regiao` | varchar(30) | Ombro, joelho, coluna ou outro; é o que liga o paciente ao grupo |
+| `cid` | varchar(30) | Código do diagnóstico que justifica este ciclo |
+| `diagnostico` | text | Justificativa clínica, como veio do médico |
 | `modalidade` | varchar(20) | `INDIVIDUAL` ou `GRUPO` |
 | `data_avaliacao` | date | |
 | `total_sessoes` | integer | Normalmente 10 |

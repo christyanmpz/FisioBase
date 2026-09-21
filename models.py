@@ -69,8 +69,8 @@ class Patient(db.Model):
     telefone = db.Column(db.String(30), nullable=True)
     email = db.Column(db.String(150), nullable=True)
     endereco = db.Column(db.String(255), nullable=True)
-    cid = db.Column(db.String(30), nullable=True)
-    diagnostico = db.Column(db.Text, nullable=True)
+    # Identificação oficial do paciente no município: 10 a 15 dígitos.
+    cartao_cidadao = db.Column(db.String(15), nullable=True)
     observacoes = db.Column(db.Text, nullable=True)
     ativo = db.Column(db.Boolean, nullable=False, default=True)
     fisioterapeuta_id = db.Column(
@@ -98,6 +98,11 @@ class TreatmentCycle(db.Model):
         db.Integer, db.ForeignKey("usuarios.id"), nullable=False
     )
     regiao = db.Column(db.String(30), nullable=True)
+    # Justificativa clínica do tratamento. Ficava no cadastro do paciente,
+    # mas cada ciclo trata de uma queixa diferente — e o mesmo paciente
+    # pode voltar anos depois por outro motivo.
+    cid = db.Column(db.String(30), nullable=True)
+    diagnostico = db.Column(db.Text, nullable=True)
     modalidade = db.Column(db.String(20), nullable=False, default="INDIVIDUAL")
     data_avaliacao = db.Column(db.Date, nullable=False)
     total_sessoes = db.Column(db.Integer, nullable=False, default=10)

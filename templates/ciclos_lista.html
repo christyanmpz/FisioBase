@@ -29,6 +29,7 @@
             <tr>
               <th scope="col">Avaliação</th>
               <th scope="col">Região</th>
+              <th scope="col">CID</th>
               <th scope="col">Modalidade</th>
               <th scope="col">Responsável</th>
               <th scope="col">Sessões</th>
@@ -41,6 +42,7 @@
             <tr>
               <td><strong>{{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}</strong></td>
               <td>{{ ciclo.regiao|capitalize }}</td>
+              <td class="muted-cell">{{ ciclo.cid or "—" }}</td>
               <td class="muted-cell">{{ ciclo.modalidade|capitalize }}</td>
               <td>
                 {% if current_user.perfil == "ADMIN" and ciclo.status == "ATIVO" %}
@@ -70,7 +72,7 @@
                 <span class="role-badge role-badge--fisioterapeuta">Em tratamento</span>
                 {% else %}
                 <span class="role-badge role-badge--admin">
-                  {{ {"CONCLUIDO": "Concluído", "ALTA": "Alta", "ABANDONO": "Abandono"}[ciclo.status] }}
+                  {{ ROTULOS_DE_CICLO.get(ciclo.status, ciclo.status) }}
                 </span>
                 {% endif %}
               </td>
@@ -79,6 +81,10 @@
                   {% if ciclo.status == "ATIVO" %}
                   <a class="button button--ghost button--small"
                      href="{{ url_for('gerar_sessoes', ciclo_id=ciclo.id) }}">Gerar sessões</a>
+                  <a class="button button--ghost button--small"
+                     href="{{ url_for('remarcar_ciclo', ciclo_id=ciclo.id) }}">Remarcar</a>
+                  <a class="button button--ghost button--small"
+                     href="{{ url_for('editar_ciclo', ciclo_id=ciclo.id) }}">Editar</a>
                   {% endif %}
                   <a class="button button--ghost button--small"
                      href="{{ url_for('cartao_do_ciclo', ciclo_id=ciclo.id) }}">Cartão</a>

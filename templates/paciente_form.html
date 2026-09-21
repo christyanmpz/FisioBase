@@ -52,14 +52,11 @@
       </div>
 
       <div class="field">
-        <label for="cid">CID</label>
-        <input id="cid" name="cid" type="text"
-               value="{{ paciente.cid if paciente and paciente.cid else '' }}">
-      </div>
-
-      <div class="field">
-        <label for="diagnostico">Diagnóstico</label>
-        <textarea id="diagnostico" name="diagnostico" rows="3">{{ paciente.diagnostico if paciente and paciente.diagnostico else '' }}</textarea>
+        <label for="cartao_cidadao">Nº do cartão cidadão</label>
+        <input id="cartao_cidadao" name="cartao_cidadao" type="text"
+               inputmode="numeric" maxlength="15"
+               value="{{ paciente.cartao_cidadao if paciente and paciente.cartao_cidadao else '' }}">
+        <small class="field-hint">De 10 a 15 dígitos. Deixe em branco se o paciente não tiver.</small>
       </div>
 
       <div class="field">

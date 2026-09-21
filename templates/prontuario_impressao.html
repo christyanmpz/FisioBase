@@ -34,16 +34,13 @@
           </div>
           <div><dt>Telefone</dt><dd>{{ paciente.telefone or "—" }}</dd></div>
           <div><dt>Endereço</dt><dd>{{ paciente.endereco or "—" }}</dd></div>
-          <div><dt>CID</dt><dd>{{ paciente.cid or "—" }}</dd></div>
+          <div><dt>Cartão cidadão</dt><dd>{{ paciente.cartao_cidadao or "—" }}</dd></div>
           <div><dt>Responsável</dt>
             <dd>{{ paciente.fisioterapeuta.nome if paciente.fisioterapeuta else "—" }}</dd>
           </div>
           <div><dt>Situação</dt><dd>{{ "Ativo" if paciente.ativo else "Inativo" }}</dd></div>
         </dl>
 
-        {% if paciente.diagnostico %}
-        <p class="folha-texto"><strong>Diagnóstico:</strong> {{ paciente.diagnostico }}</p>
-        {% endif %}
         {% if paciente.observacoes %}
         <p class="folha-texto"><strong>Observações:</strong> {{ paciente.observacoes }}</p>
         {% endif %}
@@ -57,6 +54,7 @@
             <tr>
               <th scope="col">Avaliação</th>
               <th scope="col">Região</th>
+              <th scope="col">CID</th>
               <th scope="col">Modalidade</th>
               <th scope="col">Sessões</th>
               <th scope="col">Responsável</th>
@@ -69,12 +67,21 @@
             <tr>
               <td>{{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}</td>
               <td>{{ ciclo.regiao|capitalize if ciclo.regiao else "—" }}</td>
+              <td>{{ ciclo.cid or "—" }}</td>
               <td>{{ ciclo.modalidade|capitalize }}</td>
               <td>{{ ciclo.total_sessoes }}</td>
               <td>{{ ciclo.fisioterapeuta.nome }}</td>
               <td>{{ ROTULOS_DE_CICLO.get(ciclo.status, ciclo.status) }}</td>
               <td>{{ ciclo.data_alta.strftime("%d/%m/%Y") if ciclo.data_alta else "—" }}</td>
             </tr>
+            {% if ciclo.diagnostico %}
+            <tr>
+              <td colspan="8" class="folha-diagnostico">
+                <strong>Diagnóstico ({{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}):</strong>
+                {{ ciclo.diagnostico }}
+              </td>
+            </tr>
+            {% endif %}
             {% endfor %}
           </tbody>
         </table>

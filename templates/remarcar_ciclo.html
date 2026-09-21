@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Remarcar sessões · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar">
+      <div>
+        <p class="breadcrumb">{{ paciente.nome }} <span>/</span> Ciclo</p>
+        <h1>Remarcar sessões</h1>
+      </div>
+      <a class="button button--ghost" href="{{ url_for('listar_ciclos', paciente_id=paciente.id) }}">Voltar aos ciclos</a>
+    </header>
+
+    {% if not pendentes %}
+    <section class="panel">
+      <div class="empty-state">
+        <div class="empty-state__icon" aria-hidden="true">◷</div>
+        <h3>Nenhuma sessão futura para remarcar</h3>
+        <p>
+          Só as sessões que ainda não aconteceram podem mudar de data.
+          As que já foram realizadas, faltaram ou foram canceladas ficam como estão.
+        </p>
+        <a class="button button--primary" href="{{ url_for('cartao_do_ciclo', ciclo_id=ciclo.id) }}">Ver o cartão</a>
+      </div>
+    </section>
+    {% else %}
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">O que vai mudar</p>
+          <h2>{{ pendentes|length }} sessão{{ "ões" if pendentes|length != 1 }} de {{ ciclo.regiao|capitalize if ciclo.regiao else "tratamento" }}</h2>
+        </div>
+        <span class="panel-count">
+          hoje em {{ pendentes[0].data.strftime("%d/%m/%Y") }} às {{ pendentes[0].hora.strftime("%H:%M") }}
+        </span>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Sessões que serão remarcadas</caption>
+          <thead>
+            <tr>
+              <th scope="col">Sessão</th>
+              <th scope="col">Data atual</th>
+              <th scope="col">Horário atual</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sessao in pendentes %}
+            <tr>
+              <td class="muted-cell">
+                {% if sessao.numero_sessao %}{{ sessao.numero_sessao }} de {{ ciclo.total_sessoes }}{% else %}—{% endif %}
+              </td>
+              <td><strong>{{ sessao.data.strftime("%d/%m/%Y") }}</strong></td>
+              <td class="muted-cell">{{ sessao.hora.strftime("%H:%M") }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top:17px;">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Novo horário fixo</p>
+          <h2>Para onde vão</h2>
+        </div>
+      </div>
+
+      <form method="post" class="form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="field">
+          <label for="inicio">A partir de</label>
+          <input id="inicio" name="inicio" type="date" required autofocus
+                 min="{{ hoje.isoformat() }}"
+                 value="{{ valores.get('inicio', '') }}">
+          <small>A primeira sessão remarcada cai nesta data ou no primeiro dia válido depois dela.</small>
+        </div>
+
+        <div class="field">
+          <label for="hora">Novo horário</label>
+          <select id="hora" name="hora" required>
+            <option value="">Selecione</option>
+            {% for horario in horarios %}
+            <option value="{{ horario }}" {% if valores.get('hora') == horario %}selected{% endif %}>
+              {{ horario }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Novos dias da semana</label>
+          <div class="opcoes-dias">
+            {% for numero, nome in dias %}
+            <label class="opcao-dia">
+              <input type="checkbox" name="dias" value="{{ numero }}"
+                     {% if numero|string in valores.get('dias', []) %}checked{% endif %}>
+              <span>{{ nome.split("-")[0] }}</span>
+            </label>
+            {% endfor %}
+          </div>
+          <small>Marque quantos dias por semana o paciente passa a ser atendido.</small>
+        </div>
+
+        <p class="panel-note">
+          Feriados cadastrados são pulados automaticamente. Sessões já
+          realizadas, faltas e cancelamentos não são alterados.
+        </p>
+
+        <div class="form-actions">
+          <button class="button button--primary" type="submit">Remarcar as {{ pendentes|length }} sessões</button>
+          <a class="button button--ghost" href="{{ url_for('listar_ciclos', paciente_id=paciente.id) }}">Cancelar</a>
+        </div>
+      </form>
+    </section>
+    {% endif %}
+{% endblock %}

@@ -160,12 +160,14 @@
             </div>
           </div>
           <div class="roadmap-item">
-            <div><strong>CID</strong><span>{{ paciente.cid or "Não informado" }}</span></div>
+            <div><strong>Cartão cidadão</strong>
+              <span>{{ paciente.cartao_cidadao or "Não informado" }}</span>
+            </div>
           </div>
         </div>
 
-        {% if paciente.diagnostico %}
-        <div class="panel-note">{{ paciente.diagnostico }}</div>
+        {% if paciente.observacoes %}
+        <div class="panel-note">{{ paciente.observacoes }}</div>
         {% endif %}
       </aside>
     </section>
