@@ -289,14 +289,15 @@ def test_marcar_realizado_em_data_futura_e_recusado(client, app):
     assert status_de(app, id_agendamento) == "AGENDADO"
 
 
-def test_marcar_falta_em_data_futura_e_recusado(client, app):
+def test_marcar_falta_em_data_futura_e_aceito(client, app):
+    """O paciente avisa antes que não vem: a falta é registrada na hora."""
     id_fisio = id_do_usuario(app, "fisio@teste.com")
     _, id_agendamento = criar_sessao(app, id_fisio, data=DATA_FUTURA)
 
     fazer_login(client, "admin@teste.com", SENHA_ADMIN)
     client.post(f"/agendamentos/{id_agendamento}/status", data={"status": "FALTOU"})
 
-    assert status_de(app, id_agendamento) == "AGENDADO"
+    assert status_de(app, id_agendamento) == "FALTOU"
 
 
 def test_marcar_realizado_no_dia_da_sessao_e_aceito(client, app, monkeypatch):

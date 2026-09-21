@@ -76,7 +76,19 @@ STATUS_AGENDAMENTO = (
     "FALTA_JUSTIFICADA",
 )
 # Falta justificada conta como falta nos números, mas guarda o motivo.
-STATUS_DE_FALTA = ("FALTOU", "FALTA_JUSTIFICADA")
+# O paciente não veio, seja avisando ou não: nenhuma delas recebe evolução.
+STATUS_DE_AUSENCIA = ("FALTOU", "FALTA_JUSTIFICADA")
+# Para os números do setor, a falta justificada conta como atendimento: o
+# horário foi reservado e o profissional ficou disponível.
+STATUS_DE_ATENDIMENTO = ("REALIZADO", "FALTA_JUSTIFICADA")
+# Só a falta não avisada entra como falta nos indicadores.
+STATUS_DE_FALTA = ("FALTOU",)
+# Cancelamento pelo setor e falta justificada dão direito a reposição ao
+# fim do ciclo; a falta não avisada, não.
+STATUS_QUE_REPOEM = ("CANCELADO", "FALTA_JUSTIFICADA")
+# Marca técnica na observação da reposição: evita criar duas para a mesma
+# sessão se o status for alterado de novo.
+MARCA_REPOSICAO = "[rep:{id}]"
 # Como cada situação aparece na tela e nas folhas impressas.
 ROTULOS_DE_STATUS = {
     "AGENDADO": "Agendado",
@@ -120,7 +132,9 @@ SLOTS_POR_GRUPO = 2
 # Status em que a sessão aceita evolução clínica (e só a partir do dia dela).
 STATUS_COM_EVOLUCAO = ("AGENDADO", "CONFIRMADO", "REALIZADO")
 # Status que registram comparecimento; só valem a partir do dia da sessão.
-STATUS_DE_COMPARECIMENTO = ("REALIZADO", "FALTOU", "FALTA_JUSTIFICADA")
+# Comparecer só pode ser registrado a partir do dia da sessão. As ausências
+# são registradas antes: o paciente avisa com antecedência.
+STATUS_SO_A_PARTIR_DO_DIA = ("REALIZADO",)
 FUSO_CLINICA = ZoneInfo("America/Sao_Paulo")
 
 
@@ -356,7 +370,7 @@ def register_routes(app: Flask) -> None:
         itens = consulta_base.filter(
             Appointment.data >= inicio, Appointment.data < fim
         ).all()
-        realizados = sum(1 for i in itens if i.status == "REALIZADO")
+        realizados = sum(1 for i in itens if i.status in STATUS_DE_ATENDIMENTO)
         faltas = sum(1 for i in itens if i.status in STATUS_DE_FALTA)
         previstos = realizados + faltas
         return {
@@ -426,7 +440,6 @@ def register_routes(app: Flask) -> None:
             ).all(),
             resumo=_resumo_do_mes(meus, dia_atual),
         )
-
 
     # ------------------------------------------------------------------
     # Pacientes
@@ -539,7 +552,7 @@ def register_routes(app: Flask) -> None:
         def contar(status):
             return sum(1 for item in atendimentos if item.status == status)
 
-        realizados = contar("REALIZADO")
+        realizados = sum(1 for i in atendimentos if i.status in STATUS_DE_ATENDIMENTO)
         faltas = sum(1 for i in atendimentos if i.status in STATUS_DE_FALTA)
         cancelados = contar("CANCELADO")
         previstos = len(atendimentos) - cancelados
@@ -596,7 +609,7 @@ def register_routes(app: Flask) -> None:
             for e in Evolution.query.filter(Evolution.paciente_id == paciente.id).all()
         }
 
-        realizados = sum(1 for i in atendimentos if i.status == "REALIZADO")
+        realizados = sum(1 for i in atendimentos if i.status in STATUS_DE_ATENDIMENTO)
         faltas = sum(1 for i in atendimentos if i.status in STATUS_DE_FALTA)
 
         return render_template(
@@ -1105,6 +1118,23 @@ def register_routes(app: Flask) -> None:
             consulta = consulta.filter(Appointment.id != ignorar_id)
         return consulta.count() < LIMITE_POR_HORARIO
 
+    def _somente_ciclos_ativos(consulta):
+        """Tira da agenda as sessões de ciclos já encerrados.
+
+        O histórico continua inteiro no prontuário do paciente; o que a
+        clínica pediu é que a agenda do dia mostre só quem ainda está em
+        tratamento. Avaliação e grupo não têm ciclo e seguem aparecendo.
+        """
+        encerrados = db.select(TreatmentCycle.id).where(
+            TreatmentCycle.status != "ATIVO"
+        )
+        return consulta.filter(
+            db.or_(
+                Appointment.ciclo_id.is_(None),
+                Appointment.ciclo_id.notin_(encerrados),
+            )
+        )
+
     @app.get("/agenda")
     @login_required
     def agenda():
@@ -1114,7 +1144,9 @@ def register_routes(app: Flask) -> None:
         except ValueError:
             data_agenda = hoje()
 
-        consulta = Appointment.query.filter(Appointment.data == data_agenda)
+        consulta = _somente_ciclos_ativos(
+            Appointment.query.filter(Appointment.data == data_agenda)
+        )
         if current_user.perfil != ADMIN_PROFILE:
             consulta = consulta.filter(Appointment.fisioterapeuta_id == current_user.id)
 
@@ -1131,14 +1163,39 @@ def register_routes(app: Flask) -> None:
         return data_base - timedelta(days=data_base.weekday())
 
     def _grade_de(agendamentos, chave):
-        """Monta {horario: {chave: [agendamentos]}} para desenhar a tabela."""
+        """Monta {horario: {chave: [agendamentos]}} e a lista de horários.
+
+        Além da grade fixa do expediente, entram linhas para horários fora
+        dela — agendamentos antigos, de antes da grade atual. Descartar esses
+        horários fazia o atendimento sumir da tela sem aviso nenhum.
+        """
         grade = {rotulo: {} for rotulo in HORARIOS}
         for item in agendamentos:
             rotulo = item.hora.strftime("%H:%M")
-            if rotulo not in grade:
-                continue
-            grade[rotulo].setdefault(chave(item), []).append(item)
-        return grade
+            grade.setdefault(rotulo, {}).setdefault(chave(item), []).append(item)
+        return grade, sorted(grade)
+
+    def _primeiro_com_agenda(profissionais, inicio, fim):
+        """Primeiro profissional da lista com atendimento no período.
+
+        A grade é de um profissional por vez. Abrir sempre no primeiro em
+        ordem alfabética mostrava uma semana vazia e dava a impressão de que
+        os agendamentos tinham sumido.
+        """
+        if not profissionais:
+            return None
+        ocupados = set(
+            db.session.scalars(
+                db.select(Appointment.fisioterapeuta_id)
+                .where(
+                    Appointment.data >= inicio,
+                    Appointment.data <= fim,
+                    Appointment.status != "CANCELADO",
+                )
+                .distinct()
+            )
+        )
+        return next((p for p in profissionais if p.id in ocupados), None)
 
     @app.get("/agenda/semana")
     @login_required
@@ -1155,25 +1212,30 @@ def register_routes(app: Flask) -> None:
         escolhido = current_user
         if current_user.perfil == ADMIN_PROFILE:
             pedido = request.args.get("fisioterapeuta_id", "").strip()
-            escolhido = db.session.get(User, int(pedido)) if pedido else None
+            escolhido = db.session.get(User, int(pedido)) if pedido.isdigit() else None
             if escolhido is None:
-                escolhido = profissionais[0] if profissionais else current_user
+                escolhido = _primeiro_com_agenda(profissionais, dias[0], dias[-1]) or (
+                    profissionais[0] if profissionais else current_user
+                )
 
         agendamentos = (
-            Appointment.query.filter(
-                Appointment.fisioterapeuta_id == escolhido.id,
-                Appointment.data >= dias[0],
-                Appointment.data <= dias[-1],
-                Appointment.status != "CANCELADO",
+            _somente_ciclos_ativos(
+                Appointment.query.filter(
+                    Appointment.fisioterapeuta_id == escolhido.id,
+                    Appointment.data >= dias[0],
+                    Appointment.data <= dias[-1],
+                    Appointment.status != "CANCELADO",
+                )
             )
             .order_by(Appointment.data, Appointment.hora)
             .all()
         )
+        grade, horarios = _grade_de(agendamentos, lambda i: i.data.isoformat())
 
         return render_template(
             "agenda_semanal.html",
-            grade=_grade_de(agendamentos, lambda i: i.data.isoformat()),
-            horarios=HORARIOS,
+            grade=grade,
+            horarios=horarios,
             dias=dias,
             nomes_dos_dias=[WEEKDAY_NAMES[d.weekday()] for d in dias],
             profissional=escolhido,
@@ -1196,18 +1258,21 @@ def register_routes(app: Flask) -> None:
         if current_user.perfil != ADMIN_PROFILE:
             profissionais = [p for p in profissionais if p.id == current_user.id]
 
-        consulta = Appointment.query.filter(
-            Appointment.data == data_agenda, Appointment.status != "CANCELADO"
+        consulta = _somente_ciclos_ativos(
+            Appointment.query.filter(
+                Appointment.data == data_agenda, Appointment.status != "CANCELADO"
+            )
         )
         if current_user.perfil != ADMIN_PROFILE:
             consulta = consulta.filter(Appointment.fisioterapeuta_id == current_user.id)
 
         agendamentos = consulta.order_by(Appointment.hora).all()
+        grade, horarios = _grade_de(agendamentos, lambda i: i.fisioterapeuta_id)
 
         return render_template(
             "agenda_diaria.html",
-            grade=_grade_de(agendamentos, lambda i: i.fisioterapeuta_id),
-            horarios=HORARIOS,
+            grade=grade,
+            horarios=horarios,
             profissionais=profissionais,
             data_agenda=data_agenda,
             nome_do_dia=WEEKDAY_NAMES[data_agenda.weekday()],
@@ -1343,6 +1408,82 @@ def register_routes(app: Flask) -> None:
 
         return form()
 
+    def _data_de_reposicao(agendamento):
+        """Onde encaixar a reposição: na sequência, depois da última sessão já
+        marcada do ciclo, no mesmo dia da semana e horário da sessão perdida.
+
+        Pula feriado e horário cheio. Devolve None se não achar vaga em
+        quatro meses, o que na prática significa rever o ciclo à mão.
+        """
+        ultima = db.session.scalar(
+            db.select(db.func.max(Appointment.data)).where(
+                Appointment.ciclo_id == agendamento.ciclo_id,
+                Appointment.status != "CANCELADO",
+            )
+        )
+        inicio = max(ultima or agendamento.data, agendamento.data)
+        limite = inicio + timedelta(days=120)
+        feriados = _feriados_no_periodo(inicio, limite)
+
+        dia = inicio + timedelta(days=1)
+        while dia <= limite:
+            if (
+                dia.weekday() == agendamento.data.weekday()
+                and dia.weekday() in DIAS_DE_ATENDIMENTO
+                and dia not in feriados
+                and _horario_disponivel(
+                    agendamento.fisioterapeuta_id, dia, agendamento.hora
+                )
+            ):
+                return dia
+            dia += timedelta(days=1)
+        return None
+
+    def _criar_reposicao(agendamento):
+        """Cancelamento pelo setor e falta justificada não consomem sessão.
+
+        O sistema encaixa a reposição ao fim do ciclo. Em grupo não há
+        reposição: a regra da clínica é de tratamento fechado em 6 encontros.
+        """
+        if agendamento.tipo != "SESSAO" or agendamento.ciclo_id is None:
+            return None
+        if agendamento.paciente_id is None or agendamento.grupo_id is not None:
+            return None
+
+        ciclo = agendamento.ciclo
+        if ciclo is None or ciclo.status != "ATIVO" or ciclo.modalidade == "GRUPO":
+            return None
+
+        marca = MARCA_REPOSICAO.format(id=agendamento.id)
+        if db.session.scalar(
+            db.select(Appointment.id).where(
+                Appointment.ciclo_id == ciclo.id,
+                Appointment.observacoes.like(f"%{marca}%"),
+            )
+        ):
+            return None
+
+        data = _data_de_reposicao(agendamento)
+        if data is None:
+            return None
+
+        reposicao = Appointment(
+            tipo="SESSAO",
+            paciente_id=agendamento.paciente_id,
+            ciclo_id=ciclo.id,
+            fisioterapeuta_id=agendamento.fisioterapeuta_id,
+            data=data,
+            hora=agendamento.hora,
+            duracao_min=agendamento.duracao_min,
+            status="AGENDADO",
+            observacoes=(
+                "Reposição da sessão de "
+                f"{agendamento.data.strftime('%d/%m/%Y')}. {marca}"
+            ),
+        )
+        db.session.add(reposicao)
+        return reposicao
+
     @app.post("/agendamentos/<int:agendamento_id>/status")
     @login_required
     def alterar_status_agendamento(agendamento_id: int):
@@ -1357,9 +1498,10 @@ def register_routes(app: Flask) -> None:
             flash("Status inválido.", "error")
             return redirect(url_for("agenda", data=agendamento.data.isoformat()))
 
-        if novo_status in STATUS_DE_COMPARECIMENTO and agendamento.data > hoje():
+        # Ausências são avisadas antes; só o comparecimento espera o dia.
+        if novo_status in STATUS_SO_A_PARTIR_DO_DIA and agendamento.data > hoje():
             flash(
-                "Presença e falta só podem ser registradas a partir do dia da sessão.",
+                "O comparecimento só pode ser registrado a partir do dia da sessão.",
                 "error",
             )
             return redirect(url_for("agenda", data=agendamento.data.isoformat()))
@@ -1371,8 +1513,22 @@ def register_routes(app: Flask) -> None:
                 return redirect(url_for("agenda", data=agendamento.data.isoformat()))
             agendamento.observacoes = motivo
 
+        status_anterior = agendamento.status
         agendamento.status = novo_status
+
+        reposicao = None
+        if novo_status in STATUS_QUE_REPOEM and status_anterior != novo_status:
+            reposicao = _criar_reposicao(agendamento)
+
         db.session.commit()
+
+        if reposicao is not None:
+            flash(
+                "Reposição agendada para "
+                f"{reposicao.data.strftime('%d/%m/%Y')} às "
+                f"{reposicao.hora.strftime('%H:%M')}.",
+                "info",
+            )
         flash("Status atualizado.", "success")
         return redirect(url_for("agenda", data=agendamento.data.isoformat()))
 
@@ -1414,16 +1570,14 @@ def register_routes(app: Flask) -> None:
         def contar(status):
             return sum(1 for item in itens if item.status == status)
 
-        realizados = contar("REALIZADO")
-        faltas = contar("FALTOU")
+        # A clínica conta a falta justificada como atendimento realizado.
+        compareceram = contar("REALIZADO")
         faltas_justificadas = contar("FALTA_JUSTIFICADA")
+        realizados = compareceram + faltas_justificadas
+        faltas = contar("FALTOU")
         cancelados = contar("CANCELADO")
-        previstos = len(itens) - cancelados
-        taxa_falta = (
-            round((faltas + faltas_justificadas) * 100 / previstos, 1)
-            if previstos
-            else 0
-        )
+        previstos = realizados + faltas
+        taxa_falta = round(faltas * 100 / previstos, 1) if previstos else 0
 
         por_regiao = {}
         for ciclo in lista_ciclos:
@@ -1468,7 +1622,7 @@ def register_routes(app: Flask) -> None:
 
     def _motivo_bloqueio_evolucao(agendamento):
         """Explica por que a sessão não aceita evolução, ou devolve None."""
-        if agendamento.status in STATUS_DE_FALTA:
+        if agendamento.status in STATUS_DE_AUSENCIA:
             return "Não é possível registrar evolução em sessão marcada como falta."
         if agendamento.status not in STATUS_COM_EVOLUCAO:
             return "Não é possível registrar evolução em sessão cancelada."
@@ -1575,7 +1729,6 @@ def register_routes(app: Flask) -> None:
             )
 
         return form()
-
 
     # ------------------------------------------------------------------
     # Grupos terapêuticos
@@ -1948,7 +2101,6 @@ def register_routes(app: Flask) -> None:
         db.session.commit()
         flash(f"{participacao.paciente.nome} saiu do grupo.", "success")
         return redirect(url_for("composicao_do_grupo", grupo_id=grupo.id))
-
 
 
 def register_error_handlers(app: Flask) -> None:

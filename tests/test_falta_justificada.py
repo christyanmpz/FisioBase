@@ -104,13 +104,27 @@ def test_falta_justificada_sem_motivo_e_recusada(client, app, monkeypatch):
     assert buscar(app, id_agendamento).status == "AGENDADO"
 
 
-def test_falta_justificada_em_data_futura_e_recusada(client, app, monkeypatch):
+def test_falta_justificada_em_data_futura_e_aceita(client, app, monkeypatch):
+    """A clínica registra a ausência assim que o paciente avisa."""
     fixar_hoje(monkeypatch)
     id_fisio = id_do_usuario(app, "fisio@teste.com")
     _, id_agendamento = montar(app, id_fisio, data=FUTURO)
 
     fazer_login(client, "admin@teste.com", SENHA_ADMIN)
     marcar(client, id_agendamento, "FALTA_JUSTIFICADA", MOTIVO)
+
+    agendamento = buscar(app, id_agendamento)
+    assert agendamento.status == "FALTA_JUSTIFICADA"
+    assert agendamento.observacoes == MOTIVO
+
+
+def test_comparecimento_em_data_futura_continua_recusado(client, app, monkeypatch):
+    fixar_hoje(monkeypatch)
+    id_fisio = id_do_usuario(app, "fisio@teste.com")
+    _, id_agendamento = montar(app, id_fisio, data=FUTURO)
+
+    fazer_login(client, "admin@teste.com", SENHA_ADMIN)
+    marcar(client, id_agendamento, "REALIZADO")
 
     assert buscar(app, id_agendamento).status == "AGENDADO"
 
@@ -168,7 +182,8 @@ def test_prontuario_mostra_o_rotulo(client, app, monkeypatch):
     assert "Falta justificada" in corpo
 
 
-def test_dashboard_conta_justificada_como_falta(client, app, monkeypatch):
+def test_dashboard_conta_justificada_como_atendimento(client, app, monkeypatch):
+    """Regra da clínica: quem avisou não conta como falta nos indicadores."""
     fixar_hoje(monkeypatch)
     id_fisio = id_do_usuario(app, "fisio@teste.com")
     montar(app, id_fisio, status="FALTOU")
@@ -178,7 +193,8 @@ def test_dashboard_conta_justificada_como_falta(client, app, monkeypatch):
     fazer_login(client, "fisio@teste.com", SENHA_FISIO)
     corpo = client.get("/dashboard/fisioterapeuta").get_data(as_text=True)
 
-    assert "2 faltas" in corpo
+    assert "1 falta " in corpo
+    assert "67% de presença" in corpo
 
 
 def test_relatorio_separa_falta_de_justificada(client, app, monkeypatch):
