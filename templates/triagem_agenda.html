@@ -83,7 +83,22 @@
               </td>
               <td>
                 {% if linha.agendamento %}
-                <a href="{{ url_for('agenda', data=linha.data.isoformat()) }}">Ver na agenda</a>
+                <div class="table-actions">
+                  <a href="{{ url_for('agenda', data=linha.data.isoformat()) }}">Ver na agenda</a>
+                  {% if linha.data <= hoje and linha.agendamento.paciente and linha.agendamento.paciente.ativo %}
+                  <form method="post"
+                        action="{{ url_for('alta_na_avaliacao', agendamento_id=linha.agendamento.id) }}"
+                        style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;"
+                        onsubmit="return confirm('Dar alta a {{ linha.agendamento.paciente.nome }} na avaliação, sem abrir tratamento?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <label class="sr-only" for="or-{{ linha.agendamento.id }}">Orientação dada na alta</label>
+                    <input id="or-{{ linha.agendamento.id }}" name="orientacao" type="text"
+                           placeholder="Orientação dada"
+                           style="padding:7px 9px; border:1px solid var(--line); border-radius:7px; font-size:0.72rem; min-width:150px;">
+                    <button class="button button--ghost button--small" type="submit">Alta na avaliação</button>
+                  </form>
+                  {% endif %}
+                </div>
                 {% elif linha.data >= hoje %}
                 <a href="{{ url_for('agendar_triagem', data=linha.data.isoformat(), hora=linha.slot.hora.strftime('%H:%M'), fisioterapeuta_id=linha.slot.fisioterapeuta_id) }}">
                   Agendar
@@ -109,6 +124,12 @@
       </div>
       {% endif %}
     </section>
+
+    <p class="panel-note no-print">
+      Quando o paciente sai orientado e liberado, sem precisar de tratamento,
+      use <strong>Alta na avaliação</strong>: não há ciclo para abrir, e a
+      alta fica registrada no histórico dele.
+    </p>
 
     {% if urgencias %}
     <section class="panel" style="margin-top:17px;">

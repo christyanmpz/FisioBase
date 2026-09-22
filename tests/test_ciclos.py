@@ -1,9 +1,9 @@
 """Testes dos ciclos de tratamento."""
 
-from datetime import date
+from datetime import date, time
 
 from conftest import SENHA_ADMIN, SENHA_FISIO, fazer_login
-from models import Patient, TreatmentCycle, User, db
+from models import Appointment, Patient, TreatmentCycle, User, db
 
 
 def id_do_usuario(app, email):
@@ -11,10 +11,30 @@ def id_do_usuario(app, email):
         return db.session.scalar(db.select(User).where(User.email == email)).id
 
 
-def criar_paciente(app, nome, fisioterapeuta_id):
+def criar_paciente(app, nome, fisioterapeuta_id, avaliado=True):
+    """Cria o paciente e, por padrão, a avaliação a que ele compareceu.
+
+    Desde a etapa 6 o ciclo só é aberto depois da triagem; sem essa
+    avaliação, a clínica não libera o tratamento.
+    """
     with app.app_context():
         paciente = Patient(nome=nome, fisioterapeuta_id=fisioterapeuta_id, ativo=True)
         db.session.add(paciente)
+        db.session.flush()
+
+        if avaliado:
+            db.session.add(
+                Appointment(
+                    tipo="AVALIACAO",
+                    paciente_id=paciente.id,
+                    fisioterapeuta_id=fisioterapeuta_id,
+                    data=date(2026, 9, 1),
+                    hora=time(13, 30),
+                    duracao_min=30,
+                    status="REALIZADO",
+                )
+            )
+
         db.session.commit()
         return paciente.id
 

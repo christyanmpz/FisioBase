@@ -17,8 +17,16 @@
       <input id="q" name="q" type="search" value="{{ busca }}"
              placeholder="Buscar por nome, CPF ou nascimento (01/10/1983)"
              style="flex:1; max-width:340px; padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--white);">
+      <label class="sr-only" for="situacao">Situação</label>
+      <select id="situacao" name="situacao"
+              style="padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--white);">
+        {% for valor, nome in [("ativos","Em acompanhamento"),("alta","De alta"),("todos","Todos")] %}
+        <option value="{{ valor }}" {% if valor == situacao %}selected{% endif %}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+
       <button class="button button--ghost button--small" type="submit">Buscar</button>
-      {% if busca %}
+      {% if busca or situacao != "ativos" %}
       <a href="{{ url_for('listar_pacientes') }}">Limpar</a>
       {% endif %}
     </form>
@@ -63,18 +71,20 @@
               <td>
                 <span class="status-badge">
                   <span class="status-dot" aria-hidden="true"></span>
-                  {{ "Ativo" if paciente.ativo else "Inativo" }}
+                  {{ "Em acompanhamento" if paciente.ativo else "De alta" }}
                 </span>
+                {% if not paciente.ativo and paciente.data_alta %}
+                <br><small class="muted-cell">desde {{ paciente.data_alta.strftime("%d/%m/%Y") }}</small>
+                {% endif %}
               </td>
               <td>
                 <div class="table-actions">
                   <a href="{{ url_for('listar_ciclos', paciente_id=paciente.id) }}">Ciclos</a>
                   <a href="{{ url_for('editar_paciente', paciente_id=paciente.id) }}">Editar</a>
-                                    {% if paciente.ativo %}
-                  <form method="post" action="{{ url_for('desativar_paciente', paciente_id=paciente.id) }}"
-                        onsubmit="return confirm('Desativar {{ paciente.nome }}? O histórico será mantido.');">
+                  {% if not paciente.ativo %}
+                  <form method="post" action="{{ url_for('reativar_paciente', paciente_id=paciente.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button class="button button--danger button--small" type="submit">Desativar</button>
+                    <button class="button button--ghost button--small" type="submit">Reativar</button>
                   </form>
                   {% endif %}
                 </div>

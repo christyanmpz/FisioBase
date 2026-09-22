@@ -96,7 +96,9 @@ Profissionais com acesso ao sistema.
 | `telefone`, `email`, `endereco` | varchar | Contato |
 | `cartao_cidadao` | varchar(15) | Identificação do município; 10 a 15 dígitos |
 | `observacoes` | text | |
-| `ativo` | boolean | Desativação em vez de exclusão |
+| `ativo` | boolean | Se está em acompanhamento hoje; sair é alta, não exclusão |
+| `data_alta` | date | Quando saiu da última vez |
+| `motivo_alta` | text | Por que saiu; consultado no histórico e na reativação |
 | `cid`, `diagnostico` | varchar(30), text | Legado. Migrados para `ciclos_tratamento` na etapa 3; ficam no banco como histórico e não são mais escritos |
 | `fisioterapeuta_id` | integer | Profissional responsável |
 

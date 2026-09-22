@@ -575,6 +575,16 @@ def register_routes(app: Flask) -> None:
         if current_user.perfil != ADMIN_PROFILE:
             consulta = consulta.filter_by(fisioterapeuta_id=current_user.id)
 
+        # Quem recebeu alta continua no sistema; o padrão é mostrar quem
+        # está em acompanhamento, mas a clínica consulta os dois.
+        situacao = request.args.get("situacao", "ativos").strip().lower()
+        if situacao not in ("ativos", "alta", "todos"):
+            situacao = "ativos"
+        if situacao == "ativos":
+            consulta = consulta.filter(Patient.ativo.is_(True))
+        elif situacao == "alta":
+            consulta = consulta.filter(Patient.ativo.is_(False))
+
         if busca:
             somente_digitos = "".join(c for c in busca if c.isdigit())
             filtros = [Patient.nome.ilike(f"%{busca}%")]
@@ -600,6 +610,7 @@ def register_routes(app: Flask) -> None:
             pacientes=paginacao.items,
             paginacao=paginacao,
             busca=busca,
+            situacao=situacao,
         )
 
     def _historico_por_ciclo(ciclos, atendimentos):
@@ -799,19 +810,83 @@ def register_routes(app: Flask) -> None:
 
         return form()
 
-    @app.post("/pacientes/<int:paciente_id>/desativar")
+    @app.post("/pacientes/<int:paciente_id>/alta")
     @login_required
-    def desativar_paciente(paciente_id: int):
+    def dar_alta_ao_paciente(paciente_id: int):
+        """Sair da clínica é alta, não exclusão.
+
+        O cadastro continua inteiro e pesquisável; o que muda é que o
+        paciente deixa de estar em acompanhamento. Se voltar, é reativado
+        sem recadastro — telefone e endereço se atualizam e o histórico
+        antigo continua lá.
+        """
         paciente = db.session.get(Patient, paciente_id)
         if paciente is None:
             abort(404)
         if not paciente.acessivel_por(current_user):
             abort(403)
 
+        def voltar():
+            return redirect(
+                request.form.get("voltar_para")
+                or url_for("ficha_paciente", paciente_id=paciente.id)
+            )
+
+        if not paciente.ativo:
+            flash(f"{paciente.nome} já está de alta.", "error")
+            return voltar()
+
+        motivo = request.form.get("motivo", "").strip()
+        if not motivo:
+            flash("Informe o motivo da alta.", "error")
+            return voltar()
+
         paciente.ativo = False
+        paciente.data_alta = hoje()
+        paciente.motivo_alta = motivo
+
+        # Ciclo aberto e sessões futuras não sobrevivem à alta do paciente.
+        for ciclo in TreatmentCycle.query.filter_by(
+            paciente_id=paciente.id, status="ATIVO"
+        ).all():
+            ciclo.status = "ALTA"
+            ciclo.data_alta = hoje()
+
+        Appointment.query.filter(
+            Appointment.paciente_id == paciente.id,
+            Appointment.data > hoje(),
+            Appointment.status.in_(("AGENDADO", "CONFIRMADO")),
+        ).update({"status": "CANCELADO"}, synchronize_session=False)
+
         db.session.commit()
-        flash(f"{paciente.nome} foi desativado.", "success")
-        return redirect(url_for("listar_pacientes"))
+        flash(f"{paciente.nome} recebeu alta.", "success")
+        return voltar()
+
+    @app.post("/pacientes/<int:paciente_id>/reativar")
+    @login_required
+    def reativar_paciente(paciente_id: int):
+        """O paciente voltou. O cadastro é o mesmo, com o histórico inteiro.
+
+        A alta anterior fica registrada: é ela que a clínica consulta para
+        saber quando e por que ele saiu da última vez.
+        """
+        paciente = db.session.get(Patient, paciente_id)
+        if paciente is None:
+            abort(404)
+        if not paciente.acessivel_por(current_user):
+            abort(403)
+
+        if paciente.ativo:
+            flash(f"{paciente.nome} já está em acompanhamento.", "error")
+        else:
+            paciente.ativo = True
+            db.session.commit()
+            flash(
+                f"{paciente.nome} voltou ao acompanhamento. Confira telefone "
+                "e endereço antes de abrir o tratamento.",
+                "success",
+            )
+        return redirect(url_for("ficha_paciente", paciente_id=paciente.id))
 
     # ------------------------------------------------------------------
     # Usuários
@@ -900,6 +975,38 @@ def register_routes(app: Flask) -> None:
             fisioterapeutas=_fisioterapeutas_ativos(),
         )
 
+    def _pode_abrir_ciclo(paciente):
+        """Regra da clínica: o tratamento vem depois da avaliação.
+
+        O ciclo só é aberto quando o paciente já compareceu à triagem, ou
+        quando entrou num grupo — no grupo a avaliação acontece no primeiro
+        encontro. Devolve a mensagem que impede, ou None quando libera.
+        """
+        compareceu = db.session.scalar(
+            db.select(Appointment.id).where(
+                Appointment.paciente_id == paciente.id,
+                Appointment.tipo == "AVALIACAO",
+                Appointment.status.in_(STATUS_DE_ATENDIMENTO),
+            )
+        )
+        if compareceu is not None:
+            return None
+
+        em_grupo = db.session.scalar(
+            db.select(GroupPatient.id).where(
+                GroupPatient.paciente_id == paciente.id,
+                GroupPatient.data_saida.is_(None),
+            )
+        )
+        if em_grupo is not None:
+            return None
+
+        return (
+            f"{paciente.nome} ainda não compareceu a uma avaliação. "
+            "Marque a triagem primeiro e registre o comparecimento — o "
+            "tratamento só é aberto depois disso."
+        )
+
     @app.route("/pacientes/<int:paciente_id>/ciclos/novo", methods=["GET", "POST"])
     @login_required
     def novo_ciclo(paciente_id: int):
@@ -908,6 +1015,11 @@ def register_routes(app: Flask) -> None:
             abort(404)
         if not paciente.acessivel_por(current_user):
             abort(403)
+
+        impedimento = _pode_abrir_ciclo(paciente)
+        if impedimento:
+            flash(impedimento, "error")
+            return redirect(url_for("agendar_triagem"))
 
         def form(codigo=200):
             return (
@@ -1985,6 +2097,61 @@ def register_routes(app: Flask) -> None:
             "success",
         )
         return redirect(url_for("agenda_de_triagem", data=data_agenda.isoformat()))
+
+    @app.post("/triagem/<int:agendamento_id>/alta")
+    @login_required
+    def alta_na_avaliacao(agendamento_id: int):
+        """O paciente veio, foi avaliado e saiu sem precisar de tratamento.
+
+        Acontece quando a condição é boa: o profissional orienta exercícios
+        em casa e libera. Não há ciclo para abrir — a avaliação já é o
+        atendimento, e o paciente recebe alta ali mesmo.
+        """
+        avaliacao = db.session.get(Appointment, agendamento_id)
+        if avaliacao is None or avaliacao.tipo != "AVALIACAO":
+            abort(404)
+        if not avaliacao.acessivel_por(current_user):
+            abort(403)
+
+        paciente = avaliacao.paciente
+        if paciente is None:
+            abort(404)
+
+        def voltar():
+            return redirect(
+                url_for("agenda_de_triagem", data=avaliacao.data.isoformat())
+            )
+
+        if avaliacao.data > hoje():
+            flash(
+                "A alta só pode ser registrada a partir do dia da avaliação.",
+                "error",
+            )
+            return voltar()
+
+        orientacao = request.form.get("orientacao", "").strip()
+        if not orientacao:
+            flash(
+                "Descreva a orientação dada ao paciente na alta.",
+                "error",
+            )
+            return voltar()
+
+        avaliacao.status = "REALIZADO"
+        avaliacao.observacoes = f"Alta na avaliação: {orientacao}"
+
+        paciente.ativo = False
+        paciente.data_alta = hoje()
+        paciente.motivo_alta = (
+            f"Alta na avaliação de {avaliacao.data.strftime('%d/%m/%Y')}: {orientacao}"
+        )
+        db.session.commit()
+
+        flash(
+            f"{paciente.nome} recebeu alta na avaliação, sem abrir tratamento.",
+            "success",
+        )
+        return voltar()
 
     @app.route("/agenda/novo", methods=["GET", "POST"])
     @login_required

@@ -12,8 +12,31 @@
       <div class="table-actions">
         <a class="button button--ghost" href="{{ url_for('prontuario_paciente', paciente_id=paciente.id) }}">Imprimir prontuário</a>
         <a class="button button--ghost" href="{{ url_for('editar_paciente', paciente_id=paciente.id) }}">Editar cadastro</a>
+        {% if not paciente.ativo %}
+        <form method="post" action="{{ url_for('reativar_paciente', paciente_id=paciente.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="button button--primary" type="submit">Reativar paciente</button>
+        </form>
+        {% endif %}
       </div>
     </header>
+
+    {% if not paciente.ativo %}
+    <section class="panel" style="margin-bottom:17px;">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Fora de acompanhamento</p>
+          <h2>Última alta{% if paciente.data_alta %} — {{ paciente.data_alta.strftime("%d/%m/%Y") }}{% endif %}</h2>
+        </div>
+      </div>
+      <p class="panel-note">{{ paciente.motivo_alta or "Motivo não registrado." }}</p>
+      <p class="panel-note">
+        O cadastro e todo o histórico continuam aqui. Se o paciente voltar,
+        use <strong>Reativar paciente</strong> e atualize telefone e endereço —
+        não é preciso cadastrar de novo.
+      </p>
+    </section>
+    {% endif %}
 
     <section class="stats-grid" aria-label="Resumo dos atendimentos">
       <article class="stat-card">
@@ -169,6 +192,19 @@
         {% if paciente.observacoes %}
         <div class="panel-note">{{ paciente.observacoes }}</div>
         {% endif %}
+
+        {% if paciente.ativo %}
+        <form method="post" action="{{ url_for('dar_alta_ao_paciente', paciente_id=paciente.id) }}"
+              onsubmit="return confirm('Dar alta a {{ paciente.nome }}? Os ciclos ativos serão encerrados e as sessões futuras canceladas. O histórico é mantido.');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="field">
+            <label for="motivo_alta">Motivo da alta</label>
+            <input id="motivo_alta" name="motivo" type="text" required
+                   placeholder="Alta por melhora, transferência, desistência">
+          </div>
+          <button class="button button--danger button--small" type="submit">Dar alta</button>
+        </form>
+        {% endif %}
       </aside>
     </section>
 
@@ -189,6 +225,7 @@
             <tr>
               <th scope="col">Avaliação</th>
               <th scope="col">Região</th>
+              <th scope="col">Modalidade</th>
               <th scope="col">Responsável</th>
               <th scope="col">Sessões</th>
               <th scope="col">Status</th>
@@ -199,6 +236,7 @@
             <tr>
               <td><strong>{{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}</strong></td>
               <td>{{ ciclo.regiao|capitalize }}</td>
+              <td class="muted-cell">{{ ciclo.modalidade|capitalize }}</td>
               <td class="muted-cell">{{ ciclo.fisioterapeuta.nome }}</td>
               <td class="muted-cell">{{ ciclo.total_sessoes }}</td>
               <td>

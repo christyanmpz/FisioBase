@@ -78,7 +78,12 @@ class Patient(db.Model):
     # Identificação oficial do paciente no município: 10 a 15 dígitos.
     cartao_cidadao = db.Column(db.String(15), nullable=True)
     observacoes = db.Column(db.Text, nullable=True)
+    # `ativo` diz se o paciente está em acompanhamento hoje. Sair da clínica
+    # é alta, não exclusão: os dois campos abaixo guardam a última, e o
+    # paciente pode voltar sem recadastro.
     ativo = db.Column(db.Boolean, nullable=False, default=True)
+    data_alta = db.Column(db.Date, nullable=True)
+    motivo_alta = db.Column(db.Text, nullable=True)
     fisioterapeuta_id = db.Column(
         db.Integer, db.ForeignKey("usuarios.id"), nullable=True
     )
