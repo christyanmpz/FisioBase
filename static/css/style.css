@@ -1079,6 +1079,9 @@ tbody tr:last-child td {
 .empty-state {
   display: grid;
   max-width: 530px;
+  /* Sem as margens automaticas o bloco encosta a esquerda do painel, que e
+     bem mais largo que os 530px. */
+  margin-inline: auto;
   padding: 35px 20px 17px;
   text-align: center;
   place-items: center;
@@ -1265,7 +1268,11 @@ tbody tr:last-child td {
   font-size: 0.72rem;
 }
 
-.table-actions a {
+/* Vale para os links de texto da area de acoes ("Ciclos", "Editar"). Um
+   botao que mora aqui dentro traz a propria cor e o proprio tamanho: sem o
+   :not(.button) esta regra vencia por especificidade e deixava o texto do
+   botao primario em teal sobre fundo navy, praticamente ilegivel. */
+.table-actions a:not(.button) {
   color: #2e7d75;
   font-size: 0.74rem;
   font-weight: 700;

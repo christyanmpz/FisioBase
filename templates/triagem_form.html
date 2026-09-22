@@ -16,22 +16,25 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
       <div class="field">
-        <label for="paciente_select">Paciente</label>
-        <input id="paciente_select" list="lista-de-pacientes" type="text"
-               data-autocomplete="paciente_id"
-               placeholder="Digite o nome do paciente" autofocus>
+        <label for="paciente_busca">Paciente</label>
+        <input id="paciente_busca" type="text" list="lista-de-pacientes" hidden
+               data-autocomplete="paciente_id" data-select-original="paciente_select"
+               placeholder="Digite o nome do paciente" autocomplete="off" autofocus>
         <datalist id="lista-de-pacientes">
           {% for paciente in pacientes %}
-          <option value="{{ paciente.nome }}" data-id="{{ paciente.id }}"></option>
+          <option value="{{ paciente.nome }}"></option>
           {% endfor %}
         </datalist>
-        <label class="sr-only" for="paciente_id">Paciente selecionado</label>
-        <select id="paciente_id" name="paciente_id" required>
+        <small data-autocomplete-aviso hidden class="campo-aviso">
+          Nenhum paciente com esse nome. Escolha um da lista.
+        </small>
+        <select id="paciente_select" required>
           <option value="">Selecione</option>
           {% for paciente in pacientes %}
           <option value="{{ paciente.id }}">{{ paciente.nome }}</option>
           {% endfor %}
         </select>
+        <input type="hidden" id="paciente_id" name="paciente_id">
       </div>
 
       {% if current_user.perfil == "ADMIN" %}
@@ -100,4 +103,19 @@
         <a class="button button--ghost" href="{{ url_for('agenda_de_triagem') }}">Cancelar</a>
       </div>
     </form>
+
+    <script>
+      (function () {
+        // Sem JavaScript o select continua sendo o campo; com ele, a caixa de
+        // busca assume e este trecho mantém o id escolhido em dia.
+        const paciente = document.getElementById("paciente_id");
+        const select = document.getElementById("paciente_select");
+        if (!paciente || !select) return;
+
+        select.addEventListener("change", function () {
+          paciente.value = select.value;
+        });
+        paciente.value = select.value;
+      })();
+    </script>
 {% endblock %}
