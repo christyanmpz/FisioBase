@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Resumo do grupo · {{ grupo.nome }}{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar no-print">
+      <div>
+        <p class="breadcrumb">Grupos <span>/</span> {{ grupo.nome }}</p>
+        <h1>Resumo do grupo</h1>
+      </div>
+      <div class="table-actions">
+        <a class="button button--ghost" href="{{ url_for('composicao_do_grupo', grupo_id=grupo.id) }}">Voltar ao grupo</a>
+        <button class="button button--primary" type="button" onclick="window.print()">Imprimir</button>
+      </div>
+    </header>
+
+    <article class="folha">
+      <header class="folha-cabecalho">
+        <div>
+          <p class="folha-marca">FisioBase</p>
+          <h2>Tratamento em grupo — {{ grupo.nome }}</h2>
+        </div>
+        <p class="folha-emissao">Emitido em {{ emitido_em.strftime("%d/%m/%Y") }}</p>
+      </header>
+
+      <section class="folha-bloco">
+        <h3>Identificação</h3>
+        <dl class="folha-dados">
+          <div><dt>Região</dt><dd>{{ grupo.regiao|capitalize }}</dd></div>
+          <div><dt>Profissional</dt><dd>{{ grupo.fisioterapeuta.nome }}</dd></div>
+          <div><dt>Encontro semanal</dt>
+            <dd>{{ grupo.dia_semana_nome }}{% if grupo.hora %} às {{ grupo.hora.strftime("%H:%M") }}{% endif %}</dd>
+          </div>
+          <div><dt>Encontros</dt><dd>{{ encontros|length }}</dd></div>
+          <div><dt>Equivalem a</dt><dd>{{ encontros|length * 2 }} sessões individuais</dd></div>
+          <div><dt>Situação</dt><dd>{{ "Em andamento" if grupo.ativo else "Encerrado" }}</dd></div>
+        </dl>
+      </section>
+
+      <section class="folha-bloco">
+        <h3>Presença por inscrito</h3>
+        {% if inscritos %}
+        <table class="folha-tabela">
+          <thead>
+            <tr>
+              <th scope="col">Paciente</th>
+              <th scope="col">Entrada</th>
+              <th scope="col">Saída</th>
+              <th scope="col">Compareceu</th>
+              <th scope="col">Faltou</th>
+              <th scope="col">Sessões</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inscrito in inscritos %}
+            {% set numeros = resumo_por_paciente[inscrito.id] %}
+            <tr>
+              <td>{{ inscrito.paciente.nome }}</td>
+              <td>{{ inscrito.data_entrada.strftime("%d/%m/%Y") }}</td>
+              <td>{{ inscrito.data_saida.strftime("%d/%m/%Y") if inscrito.data_saida else "—" }}</td>
+              <td>{{ numeros.compareceu }}</td>
+              <td>{{ numeros.faltou }}</td>
+              <td>{{ numeros.sessoes }}</td>
+            </tr>
+            {% if inscrito.motivo_saida %}
+            <tr>
+              <td colspan="6" class="folha-diagnostico">
+                <strong>Motivo da saída:</strong> {{ inscrito.motivo_saida }}
+              </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+        <p class="folha-texto">
+          Cada presença vale por 2 sessões individuais. Comparecimento e falta
+          justificada contam como atendimento realizado; só a falta não avisada
+          entra na coluna de faltas. No grupo não há reposição.
+        </p>
+        {% else %}
+        <p class="folha-texto">Nenhum paciente foi inscrito neste grupo.</p>
+        {% endif %}
+      </section>
+
+      <section class="folha-bloco">
+        <h3>Evolução dos encontros</h3>
+        {% if encontros %}
+        {% for encontro in encontros %}
+        {% set evolucao = evolucoes.get(encontro.data) %}
+        <div class="folha-sessao">
+          <div class="folha-sessao__topo">
+            <strong>
+              Encontro {{ loop.index }} de {{ encontros|length }} ·
+              {{ encontro.data.strftime("%d/%m/%Y") }} às {{ encontro.hora.strftime("%H:%M") }}
+            </strong>
+            {% if evolucao %}
+            <span>{{ evolucao.fisioterapeuta.nome }}</span>
+            {% endif %}
+          </div>
+
+          {% if evolucao %}
+          <p class="folha-texto"><strong>O que foi feito:</strong> {{ evolucao.descricao or "—" }}</p>
+          {% if evolucao.observacoes %}
+          <p class="folha-texto"><strong>Observações:</strong> {{ evolucao.observacoes }}</p>
+          {% endif %}
+          {% else %}
+          <p class="folha-texto folha-texto--pendente">Evolução não registrada.</p>
+          {% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="folha-texto">Este grupo ainda não tem encontros marcados.</p>
+        {% endif %}
+      </section>
+
+      <footer class="folha-assinatura">
+        <div>
+          <span class="folha-linha"></span>
+          <p>Assinatura e carimbo do profissional</p>
+        </div>
+        <div>
+          <span class="folha-linha"></span>
+          <p>Data</p>
+        </div>
+      </footer>
+    </article>
+{% endblock %}

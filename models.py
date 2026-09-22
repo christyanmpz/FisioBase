@@ -236,6 +236,9 @@ class GroupPatient(db.Model):
     )
     data_entrada = db.Column(db.Date, nullable=False, default=date.today)
     data_saida = db.Column(db.Date, nullable=True)
+    # Por que o paciente saiu antes do fim: pedido dele, alta, mudança de
+    # horário. Vale para a alta e para o histórico.
+    motivo_saida = db.Column(db.Text, nullable=True)
 
     grupo = db.relationship("Group", back_populates="participacoes")
     paciente = db.relationship("Patient", backref="participacoes_grupo")
@@ -348,3 +351,49 @@ class Evolution(db.Model):
             self.agendamento is not None
             and self.agendamento.fisioterapeuta_id == usuario.id
         )
+
+
+class GroupEvolution(db.Model):
+    """Evolução de um encontro do grupo.
+
+    No grupo o profissional anota o encontro inteiro, não paciente a
+    paciente: os exercícios são os mesmos para todos os inscritos. Uma
+    linha por data, como a folha que hoje é anexada à lista de presença.
+
+    A presença individual continua sendo registrada por paciente, na
+    lista de presença — é ela que vai para o histórico de cada um.
+    """
+
+    __tablename__ = "evolucoes_grupo"
+    __table_args__ = (
+        db.UniqueConstraint("grupo_id", "data", name="uq_evo_grupo_data"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    grupo_id = db.Column(
+        db.Integer, db.ForeignKey("grupos.id", ondelete="CASCADE"), nullable=False
+    )
+    agendamento_id = db.Column(
+        db.Integer, db.ForeignKey("agendamentos.id"), nullable=True
+    )
+    fisioterapeuta_id = db.Column(
+        db.Integer, db.ForeignKey("usuarios.id"), nullable=False
+    )
+    data = db.Column(db.Date, nullable=False)
+    descricao = db.Column(db.Text, nullable=True)
+    observacoes = db.Column(db.Text, nullable=True)
+    criado_em = db.Column(
+        db.DateTime(timezone=True), nullable=False, server_default=db.func.now()
+    )
+
+    grupo = db.relationship("Group", backref="evolucoes")
+    agendamento = db.relationship("Appointment", backref="evolucao_do_grupo")
+    fisioterapeuta = db.relationship("User", backref="evolucoes_de_grupo")
+
+    def editavel_por(self, usuario) -> bool:
+        """O admin, quem escreveu e quem conduz o grupo podem corrigir."""
+        if usuario.perfil == ADMIN_PROFILE:
+            return True
+        if self.fisioterapeuta_id == usuario.id:
+            return True
+        return self.grupo is not None and self.grupo.fisioterapeuta_id == usuario.id

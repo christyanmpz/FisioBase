@@ -47,6 +47,7 @@ from models import (
     Card,
     Evolution,
     Group,
+    GroupEvolution,
     GroupPatient,
     Holiday,
     Patient,
@@ -2312,10 +2313,48 @@ def register_routes(app: Flask) -> None:
         if current_user.perfil != ADMIN_PROFILE:
             consulta = consulta.filter(Group.fisioterapeuta_id == current_user.id)
 
+        regiao = request.args.get("regiao", "").strip().upper()
+        if regiao in GROUP_REGIONS:
+            consulta = consulta.filter(Group.regiao == regiao)
+        else:
+            regiao = ""
+
+        # Consultar se um paciente está em algum grupo, ou já passou por um.
+        paciente = request.args.get("paciente", "").strip()
+        if paciente:
+            consulta = consulta.filter(
+                Group.id.in_(
+                    db.select(GroupPatient.grupo_id)
+                    .join(Patient, Patient.id == GroupPatient.paciente_id)
+                    .where(Patient.nome.ilike(f"%{paciente}%"))
+                )
+            )
+
+        # Os mais recentes no topo: é neles que o setor mexe no dia a dia.
         grupos = consulta.order_by(
-            Group.ativo.desc(), Group.dia_semana, Group.hora, Group.nome
+            Group.ativo.desc(), Group.criado_em.desc(), Group.id.desc()
         ).all()
-        return render_template("grupos_lista.html", grupos=grupos)
+
+        # Para o caso de busca por paciente, mostrar em que grupo ele está.
+        participacoes = {}
+        if paciente:
+            for grupo in grupos:
+                encontradas = [
+                    p
+                    for p in grupo.participacoes
+                    if paciente.lower() in p.paciente.nome.lower()
+                ]
+                if encontradas:
+                    participacoes[grupo.id] = encontradas
+
+        return render_template(
+            "grupos_lista.html",
+            grupos=grupos,
+            regioes=GROUP_REGIONS,
+            regiao=regiao,
+            paciente=paciente,
+            participacoes=participacoes,
+        )
 
     @app.route("/grupos/novo", methods=["GET", "POST"])
     @login_required
@@ -2365,6 +2404,15 @@ def register_routes(app: Flask) -> None:
             abort(404)
         if not grupo.acessivel_por(current_user):
             abort(403)
+
+        # Grupo desativado é histórico: mudar dia, horário ou região agora
+        # bagunçaria os encontros e a lista de presença já registrados.
+        if not grupo.ativo:
+            flash(
+                "Grupo desativado não pode ser editado. Reative-o antes.",
+                "error",
+            )
+            return redirect(url_for("listar_grupos"))
 
         def form(codigo=200, valores=None):
             return (
@@ -2532,6 +2580,12 @@ def register_routes(app: Flask) -> None:
                     "grupo_sessoes.html",
                     grupo=grupo,
                     marcados=marcados,
+                    evolucoes={
+                        e.data: e
+                        for e in GroupEvolution.query.filter(
+                            GroupEvolution.grupo_id == grupo.id
+                        ).all()
+                    },
                     valores=valores or {},
                     hoje=hoje(),
                     semanas_padrao=grupo.total_semanas,
@@ -2832,9 +2886,183 @@ def register_routes(app: Flask) -> None:
             return redirect(url_for("composicao_do_grupo", grupo_id=grupo.id))
 
         participacao.data_saida = hoje()
+        # O motivo entra na alta e no histórico: a clínica precisa saber se
+        # foi pedido do paciente, alta ou mudança de horário.
+        participacao.motivo_saida = request.form.get("motivo", "").strip() or None
+
+        # As datas que ele não vai mais cumprir saem da agenda dele.
+        Appointment.query.filter(
+            Appointment.grupo_id == grupo.id,
+            Appointment.paciente_id == participacao.paciente_id,
+            Appointment.data > hoje(),
+            Appointment.status.in_(("AGENDADO", "CONFIRMADO")),
+        ).update({"status": "CANCELADO"}, synchronize_session=False)
+
         db.session.commit()
         flash(f"{participacao.paciente.nome} saiu do grupo.", "success")
         return redirect(url_for("composicao_do_grupo", grupo_id=grupo.id))
+
+    @app.route(
+        "/grupos/<int:grupo_id>/encontros/<int:agendamento_id>/evolucao",
+        methods=["GET", "POST"],
+    )
+    @login_required
+    def evolucao_do_grupo(grupo_id: int, agendamento_id: int):
+        """Anotação do encontro inteiro, não de paciente em paciente.
+
+        No grupo os exercícios são os mesmos para todos; o que muda por
+        pessoa é só a presença, registrada na lista de presença.
+        """
+        grupo = db.session.get(Group, grupo_id)
+        if grupo is None:
+            abort(404)
+        if not grupo.acessivel_por(current_user):
+            abort(403)
+
+        encontro = db.session.get(Appointment, agendamento_id)
+        if encontro is None or encontro.grupo_id != grupo.id:
+            abort(404)
+        if encontro.tipo != "GRUPO":
+            abort(404)
+
+        evolucao = db.session.scalar(
+            db.select(GroupEvolution).where(
+                GroupEvolution.grupo_id == grupo.id,
+                GroupEvolution.data == encontro.data,
+            )
+        )
+
+        somente_leitura = evolucao is not None and not evolucao.editavel_por(
+            current_user
+        )
+
+        def form(codigo=200, valores=None):
+            return (
+                render_template(
+                    "grupo_evolucao.html",
+                    grupo=grupo,
+                    encontro=encontro,
+                    evolucao=evolucao,
+                    somente_leitura=somente_leitura,
+                    valores=valores or {},
+                    presentes=_presentes_no_encontro(grupo, encontro.data),
+                ),
+                codigo,
+            )
+
+        if request.method == "GET":
+            return form()
+
+        if somente_leitura:
+            abort(403)
+
+        # O encontro ainda não aconteceu: não há o que relatar.
+        if encontro.data > hoje():
+            flash(
+                "A evolução só pode ser registrada a partir do dia do encontro.",
+                "error",
+            )
+            return form(400)
+
+        descricao = request.form.get("descricao", "").strip()
+        if not descricao:
+            flash("Descreva o que foi feito no encontro.", "error")
+            return form(400, {"observacoes": request.form.get("observacoes", "")})
+
+        if evolucao is None:
+            evolucao = GroupEvolution(
+                grupo_id=grupo.id,
+                agendamento_id=encontro.id,
+                fisioterapeuta_id=current_user.id,
+                data=encontro.data,
+            )
+            db.session.add(evolucao)
+
+        evolucao.descricao = descricao
+        evolucao.observacoes = request.form.get("observacoes", "").strip() or None
+        db.session.commit()
+
+        flash(
+            f"Evolução do encontro de {encontro.data.strftime('%d/%m/%Y')} salva.",
+            "success",
+        )
+        return redirect(url_for("gerar_encontros_do_grupo", grupo_id=grupo.id))
+
+    def _presentes_no_encontro(grupo, data):
+        """Quem tem presença registrada naquela data, para a folha."""
+        return (
+            Appointment.query.filter(
+                Appointment.grupo_id == grupo.id,
+                Appointment.paciente_id.isnot(None),
+                Appointment.data == data,
+            )
+            .join(Patient, Patient.id == Appointment.paciente_id)
+            .order_by(Patient.nome)
+            .all()
+        )
+
+    @app.get("/grupos/<int:grupo_id>/resumo")
+    @login_required
+    def resumo_do_grupo(grupo_id: int):
+        """Resumo para imprimir: evolução de cada data e presença de cada um.
+
+        É o que a clínica arquiva quando o grupo termina, no lugar das
+        folhas soltas grampeadas à lista de presença.
+        """
+        grupo = db.session.get(Group, grupo_id)
+        if grupo is None:
+            abort(404)
+        if not grupo.acessivel_por(current_user):
+            abort(403)
+
+        encontros = _encontros_do_grupo(grupo)
+        datas = [e.data for e in encontros]
+
+        evolucoes = {
+            e.data: e
+            for e in GroupEvolution.query.filter(
+                GroupEvolution.grupo_id == grupo.id
+            ).all()
+        }
+
+        presencas = Appointment.query.filter(
+            Appointment.grupo_id == grupo.id,
+            Appointment.paciente_id.isnot(None),
+        ).all()
+
+        grade = {}
+        for item in presencas:
+            grade.setdefault(item.paciente_id, {})[item.data] = item
+
+        # Quantas vezes cada inscrito compareceu, e quanto isso vale.
+        resumo_por_paciente = {}
+        for participacao in grupo.participacoes:
+            linhas = grade.get(participacao.paciente_id, {})
+            compareceu = sum(
+                1 for i in linhas.values() if i.status in STATUS_DE_ATENDIMENTO
+            )
+            resumo_por_paciente[participacao.id] = {
+                "compareceu": compareceu,
+                "faltou": sum(
+                    1 for i in linhas.values() if i.status in STATUS_DE_FALTA
+                ),
+                "sessoes": compareceu * SESSOES_POR_ENCONTRO_DE_GRUPO,
+            }
+
+        return render_template(
+            "grupo_resumo.html",
+            grupo=grupo,
+            encontros=encontros,
+            datas=datas,
+            evolucoes=evolucoes,
+            grade=grade,
+            inscritos=sorted(
+                grupo.participacoes,
+                key=lambda p: (p.data_saida is not None, p.paciente.nome),
+            ),
+            resumo_por_paciente=resumo_por_paciente,
+            emitido_em=hoje(),
+        )
 
 
 def register_error_handlers(app: Flask) -> None:

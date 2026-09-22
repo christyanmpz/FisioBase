@@ -46,8 +46,12 @@
           <p class="eyebrow eyebrow--muted">Calendário</p>
           <h2>Datas deste grupo</h2>
         </div>
-        <a class="button button--primary button--small"
-           href="{{ url_for('presenca_do_grupo', grupo_id=grupo.id) }}">Lista de presença</a>
+        <div class="table-actions">
+          <a class="button button--ghost button--small"
+             href="{{ url_for('resumo_do_grupo', grupo_id=grupo.id) }}">Resumo</a>
+          <a class="button button--primary button--small"
+             href="{{ url_for('presenca_do_grupo', grupo_id=grupo.id) }}">Lista de presença</a>
+        </div>
       </div>
 
       <div class="table-wrap">
@@ -59,6 +63,7 @@
               <th scope="col">Data</th>
               <th scope="col">Horário</th>
               <th scope="col">Sessões acumuladas</th>
+              <th scope="col">Evolução</th>
             </tr>
           </thead>
           <tbody>
@@ -68,6 +73,15 @@
               <td><strong>{{ encontro.data.strftime("%d/%m/%Y") }}</strong></td>
               <td class="muted-cell">{{ encontro.hora.strftime("%H:%M") }}</td>
               <td class="muted-cell">{{ loop.index * 2 }}</td>
+              <td>
+                {% if encontro.data > hoje %}
+                <span class="muted-cell">—</span>
+                {% else %}
+                <a href="{{ url_for('evolucao_do_grupo', grupo_id=grupo.id, agendamento_id=encontro.id) }}">
+                  {{ "Editar" if evolucoes.get(encontro.data) else "Registrar" }}
+                </a>
+                {% endif %}
+              </td>
             </tr>
             {% endfor %}
           </tbody>

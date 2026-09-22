@@ -135,8 +135,19 @@ mesmo tempo, por exemplo joelho e coluna.
 A falta justificada guarda o motivo no campo `observacoes` do próprio
 agendamento, em vez de uma coluna nova.
 
-**Restrição `chk_ag_alvo`:** o agendamento tem paciente **ou** grupo, nunca os
-dois e nunca nenhum.
+**Restrição `chk_ag_alvo`:** desde a etapa 4A o agendamento assume três
+formas, e a restrição cobre exatamente essas três:
+
+| `tipo` | `grupo_id` | `paciente_id` | O que é |
+| --- | --- | --- | --- |
+| `GRUPO` | sim | não | O encontro do grupo, que ocupa a grade uma vez |
+| `SESSAO` | opcional | sim | Atendimento individual, ou presença no grupo |
+| `AVALIACAO` | não | sim | Triagem |
+
+A presença de cada inscrito num encontro é um agendamento de tipo `SESSAO`
+com `grupo_id` preenchido. É isso que faz a participação em grupo aparecer no
+histórico do paciente, no cartão e nos relatórios sem código duplicado. Nas
+telas de agenda essas linhas são escondidas — quem aparece lá é o encontro.
 
 ### grupos e grupo_pacientes
 
@@ -145,8 +156,10 @@ dois e nunca nenhum.
 | `grupos.dia_semana` | 0 a 6, convenção do Python: 0 é segunda |
 | `grupos.hora` | Início do encontro semanal, de 1 hora |
 | `grupos.capacidade_max` | Padrão 14; o banco aceita de 1 a 20 |
+| `grupos.total_semanas` | Duração do tratamento; padrão 6, que valem 12 sessões |
 | `grupo_pacientes.data_entrada` | Data em que o paciente entrou |
 | `grupo_pacientes.data_saida` | Nula enquanto a participação está ativa |
+| `grupo_pacientes.motivo_saida` | Por que saiu antes do fim; vai para a alta |
 
 A convenção de `dia_semana` merece atenção: o PostgreSQL usa 0 para domingo na
 função `extract(dow ...)`, enquanto aqui 0 é segunda. Uma consulta em SQL que
@@ -154,14 +167,22 @@ compare as duas precisa converter.
 
 ### evolucoes
 
-Registro clínico de cada sessão. O `paciente_id` é obrigatório, então a
-evolução coletiva de grupo ainda não cabe nesta tabela.
+Registro clínico de cada sessão individual. O `paciente_id` é obrigatório,
+então a evolução coletiva de grupo vive em `evolucoes_grupo`.
+
+### evolucoes_grupo
+
+Uma anotação por encontro do grupo: no grupo os exercícios são os mesmos para
+todos os inscritos, e o que muda por pessoa é só a presença. A restrição
+`uq_evo_grupo_data` garante uma linha por data — salvar de novo corrige, não
+duplica.
 
 ### presencas
 
-Lista de chamada das sessões de grupo. Restrição `uq_presenca` impede o mesmo
-paciente duas vezes no mesmo agendamento. O status aceita `PRESENTE`, `FALTA`
-ou `FALTA_JUSTIFICADA`.
+**Tabela morta.** Veio do esquema original, nunca foi usada pela aplicação e
+não tem modelo em `models.py`. A chamada do grupo é feita em `agendamentos`,
+como descrito acima, para reaproveitar histórico, cartão e relatórios. Pode
+ser removida quando houver certeza de que está vazia.
 
 ### feriados
 

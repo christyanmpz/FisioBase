@@ -95,8 +95,14 @@
                   <a class="button button--ghost button--small"
                      href="{{ url_for('cartao_do_ciclo', ciclo_id=participacao.ciclo.id) }}">Cartão</a>
                   {% endif %}
-                  <form method="post" action="{{ url_for('registrar_saida_do_grupo', grupo_id=grupo.id, participacao_id=participacao.id) }}">
+                  <form method="post"
+                        action="{{ url_for('registrar_saida_do_grupo', grupo_id=grupo.id, participacao_id=participacao.id) }}"
+                        style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <label class="sr-only" for="mt-{{ participacao.id }}">Motivo da saída</label>
+                    <input id="mt-{{ participacao.id }}" name="motivo" type="text"
+                           placeholder="Motivo da saída"
+                           style="padding:7px 9px; border:1px solid var(--line); border-radius:7px; font-size:0.72rem; min-width:150px;">
                     <button class="button button--ghost button--small" type="submit">Registrar saída</button>
                   </form>
                 </div>
@@ -208,6 +214,7 @@
               <th scope="col">Paciente</th>
               <th scope="col">Entrada</th>
               <th scope="col">Saída</th>
+              <th scope="col">Motivo</th>
             </tr>
           </thead>
           <tbody>
@@ -216,6 +223,7 @@
               <td>{{ participacao.paciente.nome }}</td>
               <td class="muted-cell">{{ participacao.data_entrada.strftime("%d/%m/%Y") }}</td>
               <td class="muted-cell">{{ participacao.data_saida.strftime("%d/%m/%Y") }}</td>
+              <td class="muted-cell">{{ participacao.motivo_saida or "—" }}</td>
             </tr>
             {% endfor %}
           </tbody>

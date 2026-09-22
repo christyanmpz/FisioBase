@@ -12,10 +12,35 @@
       <a class="button button--primary" href="{{ url_for('novo_grupo') }}">Novo grupo</a>
     </header>
 
+    <form method="get" class="day-nav">
+      <label class="sr-only" for="regiao">Tipo de grupo</label>
+      <select id="regiao" name="regiao"
+              style="padding:9px 13px; border:1px solid var(--line); border-radius:9px; background:var(--white);">
+        <option value="">Todos os tipos</option>
+        {% for valor in regioes %}
+        <option value="{{ valor }}" {% if valor == regiao %}selected{% endif %}>{{ valor|capitalize }}</option>
+        {% endfor %}
+      </select>
+
+      <label class="sr-only" for="paciente">Paciente</label>
+      <input id="paciente" name="paciente" type="search" value="{{ paciente }}"
+             placeholder="Está em algum grupo? Digite o nome"
+             style="padding:8px 12px; border:1px solid var(--line); border-radius:9px; min-width:230px;">
+
+      <button class="button button--ghost button--small" type="submit">Filtrar</button>
+      {% if regiao or paciente %}
+      <a class="button button--ghost button--small" href="{{ url_for('listar_grupos') }}">Limpar</a>
+      {% endif %}
+    </form>
+
     <section class="panel">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow eyebrow--muted">Horário fixo semanal</p>
+          <p class="eyebrow eyebrow--muted">
+            {% if paciente %}Grupos de quem atende por "{{ paciente }}"
+            {%- elif regiao %}Somente {{ regiao|capitalize }}
+            {%- else %}Horário fixo semanal{% endif %}
+          </p>
           <h2>Grupos cadastrados</h2>
         </div>
         <span class="panel-count">{{ grupos|length }} registros</span>
@@ -40,7 +65,18 @@
           <tbody>
             {% for grupo in grupos %}
             <tr>
-              <td><strong>{{ grupo.nome }}</strong></td>
+              <td>
+                <strong>{{ grupo.nome }}</strong>
+                {% if participacoes.get(grupo.id) %}
+                {% for p in participacoes[grupo.id] %}
+                <br><small class="muted-cell">
+                  {{ p.paciente.nome }} —
+                  {% if p.data_saida %}saiu em {{ p.data_saida.strftime("%d/%m/%Y") }}
+                  {%- else %}inscrito desde {{ p.data_entrada.strftime("%d/%m/%Y") }}{% endif %}
+                </small>
+                {% endfor %}
+                {% endif %}
+              </td>
               <td>{{ grupo.regiao|capitalize }}</td>
               <td class="muted-cell">{{ grupo.dia_semana_nome }}</td>
               <td class="muted-cell">
@@ -60,7 +96,10 @@
               <td>
                 <div class="table-actions">
                   <a class="button button--ghost button--small" href="{{ url_for('composicao_do_grupo', grupo_id=grupo.id) }}">Pacientes</a>
+                  <a class="button button--ghost button--small" href="{{ url_for('resumo_do_grupo', grupo_id=grupo.id) }}">Resumo</a>
+                  {% if grupo.ativo %}
                   <a class="button button--ghost button--small" href="{{ url_for('editar_grupo', grupo_id=grupo.id) }}">Editar</a>
+                  {% endif %}
                   <form method="post" action="{{ url_for('alternar_situacao_grupo', grupo_id=grupo.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="button button--ghost button--small" type="submit">
@@ -77,8 +116,13 @@
       {% else %}
       <div class="empty-state">
         <div class="empty-state__icon" aria-hidden="true">◎</div>
+        {% if regiao or paciente %}
+        <h3>Nenhum grupo encontrado com esse filtro</h3>
+        <p>Tente outro tipo de grupo ou outro nome de paciente.</p>
+        {% else %}
         <h3>Nenhum grupo cadastrado</h3>
         <p>Crie um grupo com dia e horário fixos para montar a lista de presença.</p>
+        {% endif %}
       </div>
       {% endif %}
     </section>

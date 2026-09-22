@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Evolução do grupo · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar">
+      <div>
+        <p class="breadcrumb">{{ grupo.nome }} <span>/</span> Encontro de {{ encontro.data.strftime("%d/%m/%Y") }}</p>
+        <h1>Evolução do encontro</h1>
+      </div>
+      <a class="button button--ghost" href="{{ url_for('gerar_encontros_do_grupo', grupo_id=grupo.id) }}">Voltar aos encontros</a>
+    </header>
+
+    <section class="content-grid">
+      <article class="panel panel--wide">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow eyebrow--muted">
+              {{ grupo.regiao|capitalize }} ·
+              {{ encontro.hora.strftime("%H:%M") }}
+            </p>
+            <h2>{{ "Registro do encontro" if not somente_leitura else "Registro (somente leitura)" }}</h2>
+          </div>
+        </div>
+
+        {% if somente_leitura %}
+        <p class="panel-note">
+          Esta evolução foi escrita por {{ evolucao.fisioterapeuta.nome }}.
+          Só quem escreveu, quem conduz o grupo ou o administrador pode corrigir.
+        </p>
+        <h3>O que foi feito</h3>
+        <p class="folha-texto">{{ evolucao.descricao or "—" }}</p>
+        {% if evolucao.observacoes %}
+        <h3>Observações</h3>
+        <p class="folha-texto">{{ evolucao.observacoes }}</p>
+        {% endif %}
+        {% else %}
+        <form method="post" class="form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div class="field">
+            <label for="descricao">O que foi feito no encontro</label>
+            <textarea id="descricao" name="descricao" rows="6" required autofocus
+                      placeholder="Exercícios, orientações e condutas aplicadas ao grupo.">{{ evolucao.descricao if evolucao else valores.get('descricao', '') }}</textarea>
+            <small class="field-hint">
+              Vale para todos os inscritos: no grupo os exercícios são os mesmos.
+              O que muda por pessoa é a presença.
+            </small>
+          </div>
+
+          <div class="field">
+            <label for="observacoes">Observações</label>
+            <textarea id="observacoes" name="observacoes" rows="4"
+                      placeholder="Intercorrências, ajustes para a próxima semana.">{{ evolucao.observacoes if evolucao else valores.get('observacoes', '') }}</textarea>
+          </div>
+
+          <div class="form-actions">
+            <button class="button button--primary" type="submit">
+              {{ "Salvar alterações" if evolucao else "Registrar evolução" }}
+            </button>
+            <a class="button button--ghost" href="{{ url_for('gerar_encontros_do_grupo', grupo_id=grupo.id) }}">Cancelar</a>
+          </div>
+        </form>
+        {% endif %}
+      </article>
+
+      <aside class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow eyebrow--muted">Chamada do dia</p>
+            <h2>Quem estava</h2>
+          </div>
+        </div>
+
+        {% if presentes %}
+        <div class="roadmap">
+          {% for presenca in presentes %}
+          <div class="roadmap-item">
+            <div>
+              <strong>{{ presenca.paciente.nome }}</strong>
+              <span>{{ ROTULOS_DE_STATUS.get(presenca.status, presenca.status) }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="panel-note">
+          A presença é registrada na
+          <a href="{{ url_for('presenca_do_grupo', grupo_id=grupo.id) }}">lista de presença</a>.
+        </p>
+        {% else %}
+        <p class="panel-note">Nenhum inscrito tem presença registrada nesta data.</p>
+        {% endif %}
+      </aside>
+    </section>
+{% endblock %}
