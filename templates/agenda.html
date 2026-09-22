@@ -89,12 +89,14 @@
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <label class="sr-only" for="status-{{ item.id }}">Status do agendamento</label>
                     <select id="status-{{ item.id }}" name="status">
-                      <option value="AGENDADO" {% if item.status == "AGENDADO" %}selected{% endif %}>Agendado</option>
-                      <option value="CONFIRMADO" {% if item.status == "CONFIRMADO" %}selected{% endif %}>Confirmado</option>
-                      <option value="REALIZADO" {% if item.status == "REALIZADO" %}selected{% endif %}>Realizado</option>
-                      <option value="FALTOU" {% if item.status == "FALTOU" %}selected{% endif %}>Faltou</option>
-                      <option value="FALTA_JUSTIFICADA" {% if item.status == "FALTA_JUSTIFICADA" %}selected{% endif %}>Falta justificada</option>
-                      <option value="CANCELADO" {% if item.status == "CANCELADO" %}selected{% endif %}>Cancelado</option>
+                      {# Os nomes saem de ROTULOS_DE_STATUS para a agenda falar
+                         igual ao resto do sistema: aqui dizia "Realizado" e na
+                         ficha, "Compareceu", para o mesmo status. #}
+                      {% for valor in ["AGENDADO", "CONFIRMADO", "REALIZADO", "FALTOU", "FALTA_JUSTIFICADA", "CANCELADO"] %}
+                      <option value="{{ valor }}" {% if item.status == valor %}selected{% endif %}>
+                        {{ ROTULOS_DE_STATUS.get(valor, valor) }}
+                      </option>
+                      {% endfor %}
                     </select>
                     <label class="sr-only" for="justificativa-{{ item.id }}">Motivo da falta justificada</label>
                     <input id="justificativa-{{ item.id }}" name="justificativa" type="text"

@@ -1,0 +1,170 @@
+diff --git a/app.py b/app.py
+index b7b22e0..481a326 100644
+--- a/app.py
++++ b/app.py
+@@ -141,24 +141,6 @@ DIAS_DE_ATENDIMENTO = (0, 1, 2, 3, 4)
+ SLOTS_POR_GRUPO = 2
+ # Status em que a sessão aceita evolução clínica (e só a partir do dia dela).
+ STATUS_COM_EVOLUCAO = ("AGENDADO", "CONFIRMADO", "REALIZADO")
+-# Status que registram comparecimento; só valem a partir do dia da sessão.
+-# Expediente da clínica: 07:30 às 15:30, sessões de 30 min, encerrando às 16h.
+-# O almoço fica fora da grade para todos; bloqueios por profissional virão
+-# com a tela de disponibilidade (triagens fixas, reunião e horários fechados).
+-HORARIO_ALMOCO = "12:00"
+-HORARIOS = [
+-    f"{h:02d}:{m:02d}"
+-    for h in range(7, 16)
+-    for m in (0, 30)
+-    if (h, m) >= (7, 30) and f"{h:02d}:{m:02d}" != HORARIO_ALMOCO
+-]
+-# A clínica não atende sábado nem domingo (0 = segunda ... 6 = domingo).
+-DIAS_DE_ATENDIMENTO = (0, 1, 2, 3, 4)
+-# A sessao de grupo dura 1 hora: ocupa dois horarios seguidos da grade.
+-SLOTS_POR_GRUPO = 2
+-# Status em que a sessão aceita evolução clínica (e só a partir do dia dela).
+-STATUS_COM_EVOLUCAO = ("AGENDADO", "CONFIRMADO", "REALIZADO")
+-# Status que registram comparecimento; só valem a partir do dia da sessão.
+ # Comparecer só pode ser registrado a partir do dia da sessão. As ausências
+ # são registradas antes: o paciente avisa com antecedência.
+ STATUS_SO_A_PARTIR_DO_DIA = ("REALIZADO",)
+diff --git a/templates/agenda.html b/templates/agenda.html
+index daf70d9..32103c0 100644
+--- a/templates/agenda.html
++++ b/templates/agenda.html
+@@ -89,12 +89,14 @@
+                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                     <label class="sr-only" for="status-{{ item.id }}">Status do agendamento</label>
+                     <select id="status-{{ item.id }}" name="status">
+-                      <option value="AGENDADO" {% if item.status == "AGENDADO" %}selected{% endif %}>Agendado</option>
+-                      <option value="CONFIRMADO" {% if item.status == "CONFIRMADO" %}selected{% endif %}>Confirmado</option>
+-                      <option value="REALIZADO" {% if item.status == "REALIZADO" %}selected{% endif %}>Realizado</option>
+-                      <option value="FALTOU" {% if item.status == "FALTOU" %}selected{% endif %}>Faltou</option>
+-                      <option value="FALTA_JUSTIFICADA" {% if item.status == "FALTA_JUSTIFICADA" %}selected{% endif %}>Falta justificada</option>
+-                      <option value="CANCELADO" {% if item.status == "CANCELADO" %}selected{% endif %}>Cancelado</option>
++                      {# Os nomes saem de ROTULOS_DE_STATUS para a agenda falar
++                         igual ao resto do sistema: aqui dizia "Realizado" e na
++                         ficha, "Compareceu", para o mesmo status. #}
++                      {% for valor in ["AGENDADO", "CONFIRMADO", "REALIZADO", "FALTOU", "FALTA_JUSTIFICADA", "CANCELADO"] %}
++                      <option value="{{ valor }}" {% if item.status == valor %}selected{% endif %}>
++                        {{ ROTULOS_DE_STATUS.get(valor, valor) }}
++                      </option>
++                      {% endfor %}
+                     </select>
+                     <label class="sr-only" for="justificativa-{{ item.id }}">Motivo da falta justificada</label>
+                     <input id="justificativa-{{ item.id }}" name="justificativa" type="text"
+diff --git a/templates/dashboard_admin.html b/templates/dashboard_admin.html
+index 15640fb..62325c7 100644
+--- a/templates/dashboard_admin.html
++++ b/templates/dashboard_admin.html
+@@ -93,7 +93,7 @@
+                 <td class="muted-cell">{{ item.fisioterapeuta.nome }}</td>
+                 <td>
+                   <span class="role-badge role-badge--{{ 'fisioterapeuta' if item.status == 'REALIZADO' else 'admin' }}">
+-                    {{ {"AGENDADO": "Agendado", "CONFIRMADO": "Confirmado", "REALIZADO": "Compareceu", "FALTOU": "Faltou", "CANCELADO": "Cancelado"}[item.status] }}
++                    {{ ROTULOS_DE_STATUS.get(item.status, item.status) }}
+                   </span>
+                 </td>
+               </tr>
+diff --git a/templates/dashboard_fisioterapeuta.html b/templates/dashboard_fisioterapeuta.html
+index db58470..f69e770 100644
+--- a/templates/dashboard_fisioterapeuta.html
++++ b/templates/dashboard_fisioterapeuta.html
+@@ -85,7 +85,7 @@
+                 <td class="muted-cell">{{ "Avaliação" if item.tipo == "AVALIACAO" else "Sessão" }}</td>
+                 <td>
+                   <span class="role-badge role-badge--{{ 'fisioterapeuta' if item.status == 'REALIZADO' else 'admin' }}">
+-                    {{ {"AGENDADO": "Agendado", "CONFIRMADO": "Confirmado", "REALIZADO": "Compareceu", "FALTOU": "Faltou", "CANCELADO": "Cancelado"}[item.status] }}
++                    {{ ROTULOS_DE_STATUS.get(item.status, item.status) }}
+                   </span>
+                 </td>
+               </tr>
+diff --git a/tests/test_rotulos_de_status.py b/tests/test_rotulos_de_status.py
+new file mode 100644
+index 0000000..52db44e
+--- /dev/null
++++ b/tests/test_rotulos_de_status.py
+@@ -0,0 +1,84 @@
++"""Os rótulos de situação têm que sair todos da mesma tabela.
++
++Duas telas guardavam a própria lista de nomes escrita à mão. Quando a
++"Falta justificada" nasceu, essas listas não foram atualizadas e a etiqueta
++saía em branco nos dashboards. Aqui cada tela é renderizada de verdade com
++um agendamento em cada situação, exigindo o nome certo na tela.
++"""
++
++from datetime import time
++
++import pytest
++
++import app as modulo_app
++from app import ROTULOS_DE_STATUS
++from models import Appointment, Patient, User, db
++
++from tests.conftest import SENHA_ADMIN, SENHA_FISIO, fazer_login
++
++
++def _cenario(app, status):
++    """Cria um paciente com um agendamento de hoje na situação pedida."""
++    with app.app_context():
++        fisio = db.session.scalar(db.select(User).filter_by(email="fisio@teste.com"))
++        paciente = Patient(nome="Joana Ribeiro", fisioterapeuta_id=fisio.id, ativo=True)
++        db.session.add(paciente)
++        db.session.commit()
++
++        db.session.add(
++            Appointment(
++                paciente_id=paciente.id,
++                fisioterapeuta_id=fisio.id,
++                data=modulo_app.hoje(),
++                hora=time(9, 0),
++                tipo="SESSAO",
++                status=status,
++            )
++        )
++        db.session.commit()
++
++
++def _etiqueta(html):
++    """Devolve o texto da etiqueta de situação da linha do paciente."""
++    pedaco = html[html.find("Joana Ribeiro") :]
++    abre = pedaco.find('<span class="role-badge')
++    assert abre > -1, "a linha do paciente não trouxe etiqueta de situação"
++    inicio = pedaco.find(">", abre) + 1
++    return pedaco[inicio : pedaco.find("</span>", inicio)].strip()
++
++
++@pytest.mark.parametrize("status", sorted(ROTULOS_DE_STATUS))
++def test_dashboard_do_fisioterapeuta_nomeia_toda_situacao(client, app, status):
++    _cenario(app, status)
++    fazer_login(client, "fisio@teste.com", SENHA_FISIO)
++
++    resposta = client.get("/dashboard/fisioterapeuta")
++
++    assert resposta.status_code == 200
++    assert _etiqueta(resposta.get_data(as_text=True)) == ROTULOS_DE_STATUS[status]
++
++
++@pytest.mark.parametrize("status", sorted(ROTULOS_DE_STATUS))
++def test_dashboard_do_admin_nomeia_toda_situacao(client, app, status):
++    _cenario(app, status)
++    fazer_login(client, "admin@teste.com", SENHA_ADMIN)
++
++    resposta = client.get("/dashboard/admin")
++
++    assert resposta.status_code == 200
++    assert _etiqueta(resposta.get_data(as_text=True)) == ROTULOS_DE_STATUS[status]
++
++
++def test_agenda_usa_os_mesmos_nomes_do_resto_do_sistema(client, app):
++    """A agenda dizia "Realizado" onde a ficha do paciente diz "Compareceu"."""
++    _cenario(app, "AGENDADO")
++    fazer_login(client, "fisio@teste.com", SENHA_FISIO)
++
++    html = client.get(f"/agenda?data={modulo_app.hoje().isoformat()}").get_data(
++        as_text=True
++    )
++
++    for valor, nome in ROTULOS_DE_STATUS.items():
++        assert f'value="{valor}"' in html, f"a agenda não oferece {valor}"
++        assert nome in html, f"a agenda não chama {valor} de {nome}"
++    assert ">Realizado<" not in html

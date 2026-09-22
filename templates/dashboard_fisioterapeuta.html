@@ -85,7 +85,7 @@
                 <td class="muted-cell">{{ "Avaliação" if item.tipo == "AVALIACAO" else "Sessão" }}</td>
                 <td>
                   <span class="role-badge role-badge--{{ 'fisioterapeuta' if item.status == 'REALIZADO' else 'admin' }}">
-                    {{ {"AGENDADO": "Agendado", "CONFIRMADO": "Confirmado", "REALIZADO": "Compareceu", "FALTOU": "Faltou", "CANCELADO": "Cancelado"}[item.status] }}
+                    {{ ROTULOS_DE_STATUS.get(item.status, item.status) }}
                   </span>
                 </td>
               </tr>
