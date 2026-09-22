@@ -51,6 +51,7 @@ from models import (
     GroupPatient,
     Holiday,
     Patient,
+    ScreeningSlot,
     TreatmentCycle,
     User,
     db,
@@ -1611,6 +1612,9 @@ def register_routes(app: Flask) -> None:
             "agenda_semanal.html",
             grade=grade,
             horarios=horarios,
+            # Os horários reservados para triagem aparecem marcados na grade,
+            # como as células "T =" coloridas da planilha da clínica.
+            triagens=_marcas_de_triagem(escolhido.id),
             dias=dias,
             nomes_dos_dias=[WEEKDAY_NAMES[d.weekday()] for d in dias],
             profissional=escolhido,
@@ -1658,6 +1662,329 @@ def register_routes(app: Flask) -> None:
             dia_seguinte=data_agenda + timedelta(days=1),
             total=len(agendamentos),
         )
+
+    # ------------------------------------------------------------------
+    # Triagem
+    # ------------------------------------------------------------------
+
+    def _horarios_de_triagem(fisioterapeuta_id=None):
+        """Os horários fixos de triagem, na ordem em que aparecem na agenda."""
+        consulta = ScreeningSlot.query.filter(ScreeningSlot.ativo.is_(True))
+        if fisioterapeuta_id is not None:
+            consulta = consulta.filter(
+                ScreeningSlot.fisioterapeuta_id == fisioterapeuta_id
+            )
+        return consulta.order_by(
+            ScreeningSlot.dia_semana, ScreeningSlot.hora, ScreeningSlot.id
+        ).all()
+
+    def _marcas_de_triagem(fisioterapeuta_id):
+        """{(dia da semana, 'HH:MM')} para a grade destacar as células."""
+        return {
+            (slot.dia_semana, slot.hora.strftime("%H:%M"))
+            for slot in _horarios_de_triagem(fisioterapeuta_id)
+        }
+
+    @app.get("/triagem")
+    @login_required
+    def agenda_de_triagem():
+        """Agenda separada da triagem, que vem antes do ciclo de tratamento.
+
+        A avaliação é o primeiro contato: acontece antes de existir ciclo, e
+        nem sempre vira tratamento — o paciente pode sair orientado e com
+        alta na própria avaliação.
+        """
+        try:
+            base = date.fromisoformat(request.args.get("data", "").strip())
+        except ValueError:
+            base = hoje()
+        segunda = _segunda_da_semana(base)
+        dias = [segunda + timedelta(days=n) for n in DIAS_DE_ATENDIMENTO]
+
+        profissionais = _fisioterapeutas_ativos()
+        if current_user.perfil != ADMIN_PROFILE:
+            profissionais = [p for p in profissionais if p.id == current_user.id]
+
+        ids = [p.id for p in profissionais] or [0]
+        slots = [
+            s
+            for s in _horarios_de_triagem()
+            if s.fisioterapeuta_id in ids and s.dia_semana in DIAS_DE_ATENDIMENTO
+        ]
+
+        # O que já está marcado como avaliação nesta semana.
+        marcadas = Appointment.query.filter(
+            Appointment.tipo == "AVALIACAO",
+            Appointment.data >= dias[0],
+            Appointment.data <= dias[-1],
+            Appointment.status != "CANCELADO",
+            Appointment.fisioterapeuta_id.in_(ids),
+        ).all()
+        ocupados = {(a.fisioterapeuta_id, a.data, a.hora): a for a in marcadas}
+
+        # Uma linha por horário fixo em cada dia útil da semana escolhida.
+        linhas = []
+        for slot in slots:
+            dia = segunda + timedelta(days=slot.dia_semana)
+            linhas.append(
+                {
+                    "slot": slot,
+                    "data": dia,
+                    "agendamento": ocupados.get(
+                        (slot.fisioterapeuta_id, dia, slot.hora)
+                    ),
+                }
+            )
+        linhas.sort(
+            key=lambda l: (l["data"], l["slot"].hora, l["slot"].fisioterapeuta.nome)
+        )
+
+        # Avaliações de urgência caem fora dos horários fixos.
+        chaves_fixas = {
+            (l["slot"].fisioterapeuta_id, l["data"], l["slot"].hora) for l in linhas
+        }
+        urgencias = [a for chave, a in ocupados.items() if chave not in chaves_fixas]
+        urgencias.sort(key=lambda a: (a.data, a.hora))
+
+        return render_template(
+            "triagem_agenda.html",
+            linhas=linhas,
+            urgencias=urgencias,
+            dias=dias,
+            profissionais=profissionais,
+            semana_anterior=segunda - timedelta(days=7),
+            semana_seguinte=segunda + timedelta(days=7),
+            hoje=hoje(),
+        )
+
+    @app.route("/triagem/horarios", methods=["GET", "POST"])
+    @login_required
+    def horarios_de_triagem():
+        """Onde cada profissional define seus horários fixos de triagem."""
+        profissionais = _fisioterapeutas_ativos()
+        if current_user.perfil != ADMIN_PROFILE:
+            profissionais = [p for p in profissionais if p.id == current_user.id]
+
+        def form(codigo=200):
+            ids = [p.id for p in profissionais] or [0]
+            return (
+                render_template(
+                    "triagem_horarios.html",
+                    profissionais=profissionais,
+                    horarios=[
+                        s for s in _horarios_de_triagem() if s.fisioterapeuta_id in ids
+                    ],
+                    grade=HORARIOS,
+                    dias=[(i, WEEKDAY_NAMES[i]) for i in DIAS_DE_ATENDIMENTO],
+                ),
+                codigo,
+            )
+
+        if request.method == "GET":
+            return form()
+
+        escolhido = request.form.get("fisioterapeuta_id", "").strip()
+        alvo = current_user
+        if current_user.perfil == ADMIN_PROFILE:
+            alvo = db.session.get(User, int(escolhido)) if escolhido.isdigit() else None
+            if alvo is None or not alvo.ativo:
+                flash("Selecione um fisioterapeuta ativo.", "error")
+                return form(400)
+        elif escolhido and escolhido != str(current_user.id):
+            abort(403)
+
+        try:
+            dia = int(request.form.get("dia_semana", ""))
+        except ValueError:
+            dia = -1
+        if dia not in DIAS_DE_ATENDIMENTO:
+            flash("Escolha um dia de segunda a sexta-feira.", "error")
+            return form(400)
+
+        rotulo = request.form.get("hora", "").strip()
+        if rotulo not in HORARIOS:
+            flash("Escolha um horário do expediente.", "error")
+            return form(400)
+        hora = time.fromisoformat(rotulo)
+
+        existente = db.session.scalar(
+            db.select(ScreeningSlot).where(
+                ScreeningSlot.fisioterapeuta_id == alvo.id,
+                ScreeningSlot.dia_semana == dia,
+                ScreeningSlot.hora == hora,
+            )
+        )
+        if existente is not None:
+            if existente.ativo:
+                flash("Este horário de triagem já existe.", "error")
+                return form(400)
+            existente.ativo = True
+        else:
+            db.session.add(
+                ScreeningSlot(
+                    fisioterapeuta_id=alvo.id,
+                    dia_semana=dia,
+                    hora=hora,
+                    ativo=True,
+                )
+            )
+        db.session.commit()
+
+        flash(
+            f"Triagem de {alvo.nome} às {rotulo}, {WEEKDAY_NAMES[dia].lower()}.",
+            "success",
+        )
+        return redirect(url_for("horarios_de_triagem"))
+
+    @app.post("/triagem/horarios/<int:slot_id>/remover")
+    @login_required
+    def remover_horario_de_triagem(slot_id: int):
+        """Desativa em vez de apagar: o histórico de quem passou ali continua."""
+        slot = db.session.get(ScreeningSlot, slot_id)
+        if slot is None:
+            abort(404)
+        if (
+            current_user.perfil != ADMIN_PROFILE
+            and slot.fisioterapeuta_id != current_user.id
+        ):
+            abort(403)
+
+        slot.ativo = False
+        db.session.commit()
+        flash("Horário de triagem removido.", "success")
+        return redirect(url_for("horarios_de_triagem"))
+
+    @app.route("/triagem/agendar", methods=["GET", "POST"])
+    @login_required
+    def agendar_triagem():
+        """Marca a avaliação do paciente, nos horários fixos ou como urgência.
+
+        Urgência é o que a clínica encaixa fora da grade de triagem: fratura,
+        AVC, pré e pós-operatório. Por isso exige motivo escrito.
+        """
+        if current_user.perfil == ADMIN_PROFILE:
+            pacientes = Patient.query.filter_by(ativo=True).order_by(Patient.nome).all()
+            profissionais = _fisioterapeutas_ativos()
+        else:
+            pacientes = (
+                Patient.query.filter_by(ativo=True, fisioterapeuta_id=current_user.id)
+                .order_by(Patient.nome)
+                .all()
+            )
+            profissionais = [current_user]
+
+        def form(codigo=200, valores=None):
+            return (
+                render_template(
+                    "triagem_form.html",
+                    pacientes=pacientes,
+                    profissionais=profissionais,
+                    horarios=HORARIOS,
+                    valores=valores or {},
+                    hoje=hoje(),
+                ),
+                codigo,
+            )
+
+        if request.method == "GET":
+            valores = {
+                chave: request.args.get(chave, "").strip()
+                for chave in ("data", "hora", "fisioterapeuta_id")
+            }
+            return form(valores=valores)
+
+        valores = {
+            chave: request.form.get(chave, "").strip()
+            for chave in ("data", "hora", "fisioterapeuta_id", "urgencia", "motivo")
+        }
+
+        paciente = db.session.get(Patient, int(request.form.get("paciente_id") or 0))
+        if paciente is None or not paciente.ativo:
+            flash("Selecione um paciente ativo.", "error")
+            return form(400, valores)
+        if not paciente.acessivel_por(current_user):
+            abort(403)
+
+        responsavel = current_user
+        if current_user.perfil == ADMIN_PROFILE:
+            escolhido = valores["fisioterapeuta_id"]
+            responsavel = (
+                db.session.get(User, int(escolhido)) if escolhido.isdigit() else None
+            )
+            if responsavel is None or not responsavel.ativo:
+                flash("Selecione o fisioterapeuta que fará a avaliação.", "error")
+                return form(400, valores)
+
+        try:
+            data_agenda = date.fromisoformat(valores["data"])
+        except ValueError:
+            flash("Informe a data da avaliação.", "error")
+            return form(400, valores)
+
+        if data_agenda < hoje():
+            flash("Não é possível agendar em data que já passou.", "error")
+            return form(400, valores)
+
+        if data_agenda.weekday() not in DIAS_DE_ATENDIMENTO:
+            flash("A clínica atende de segunda a sexta-feira.", "error")
+            return form(400, valores)
+
+        if valores["hora"] not in HORARIOS:
+            flash("Escolha um horário do expediente.", "error")
+            return form(400, valores)
+        hora = time.fromisoformat(valores["hora"])
+
+        urgencia = valores["urgencia"] == "1"
+        motivo = valores["motivo"]
+
+        if urgencia:
+            if not motivo:
+                flash(
+                    "Descreva a urgência: fratura, AVC, pré ou pós-operatório.",
+                    "error",
+                )
+                return form(400, valores)
+        else:
+            # Fora da urgência, a avaliação vai nos horários fixos de triagem.
+            reservados = _marcas_de_triagem(responsavel.id)
+            if (data_agenda.weekday(), valores["hora"]) not in reservados:
+                flash(
+                    f"{responsavel.nome} não tem triagem neste dia e horário. "
+                    "Escolha um horário da agenda de triagem, ou marque como "
+                    "urgência.",
+                    "error",
+                )
+                return form(400, valores)
+
+        if not _horario_disponivel(responsavel.id, data_agenda, hora):
+            flash(
+                "Este horário já tem 2 pacientes para o profissional. "
+                "Escolha outro horário.",
+                "error",
+            )
+            return form(400, valores)
+
+        observacoes = f"Urgência: {motivo}" if urgencia else None
+        db.session.add(
+            Appointment(
+                tipo="AVALIACAO",
+                paciente_id=paciente.id,
+                fisioterapeuta_id=responsavel.id,
+                data=data_agenda,
+                hora=hora,
+                duracao_min=30,
+                status="AGENDADO",
+                observacoes=observacoes,
+            )
+        )
+        db.session.commit()
+
+        flash(
+            f"Avaliação de {paciente.nome} marcada para "
+            f"{data_agenda.strftime('%d/%m/%Y')} às {valores['hora']}.",
+            "success",
+        )
+        return redirect(url_for("agenda_de_triagem", data=data_agenda.isoformat()))
 
     @app.route("/agenda/novo", methods=["GET", "POST"])
     @login_required

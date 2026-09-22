@@ -2141,3 +2141,38 @@ tbody tr:last-child td {
     color: #000;
   }
 }
+
+/* Horários reservados para triagem na grade semanal — são as células
+   "T =" coloridas da planilha que a clínica usa hoje. */
+.grade-celula--triagem {
+  background: #fdf3d7;
+}
+
+.grade-triagem {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  color: #7a5c14;
+  background: #f7e3a8;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.grade-legenda .e-triagem {
+  background: #f7e3a8;
+}
+
+@media print {
+  .grade-celula--triagem {
+    background: transparent;
+  }
+
+  .grade-triagem {
+    border: 1px solid #5d7472;
+    background: transparent;
+    color: #000;
+  }
+}

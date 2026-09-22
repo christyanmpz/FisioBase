@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}Triagem · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar no-print">
+      <div>
+        <p class="breadcrumb">Agenda <span>/</span> Triagem</p>
+        <h1>Agenda de triagem</h1>
+      </div>
+      <div class="table-actions">
+        <a class="button button--ghost" href="{{ url_for('horarios_de_triagem') }}">Horários fixos</a>
+        <a class="button button--primary" href="{{ url_for('agendar_triagem') }}">Agendar avaliação</a>
+      </div>
+    </header>
+
+    <form method="get" class="day-nav no-print">
+      <a class="button button--ghost button--small"
+         href="{{ url_for('agenda_de_triagem', data=semana_anterior.isoformat()) }}">← Semana anterior</a>
+      <a class="button button--ghost button--small"
+         href="{{ url_for('agenda_de_triagem') }}">Esta semana</a>
+      <a class="button button--ghost button--small"
+         href="{{ url_for('agenda_de_triagem', data=semana_seguinte.isoformat()) }}">Próxima semana →</a>
+
+      <label class="sr-only" for="data">Semana</label>
+      <input id="data" name="data" type="date" value="{{ dias[0].isoformat() }}"
+             style="padding:8px 12px; border:1px solid var(--line); border-radius:9px;">
+      <button class="button button--ghost button--small" type="submit">Ir</button>
+    </form>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">
+            Semana de {{ dias[0].strftime("%d/%m") }} a {{ dias[-1].strftime("%d/%m/%Y") }}
+          </p>
+          <h2>Horários fixos de triagem</h2>
+        </div>
+        <span class="panel-count no-print">
+          {{ linhas|selectattr("agendamento")|list|length }} de {{ linhas|length }} ocupados
+        </span>
+      </div>
+
+      {% if linhas %}
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Horários de triagem da semana e quem está marcado</caption>
+          <thead>
+            <tr>
+              <th scope="col">Dia</th>
+              <th scope="col">Horário</th>
+              <th scope="col">Profissional</th>
+              <th scope="col">Paciente</th>
+              <th scope="col">Situação</th>
+              <th scope="col">Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for linha in linhas %}
+            <tr>
+              <td>
+                <strong>{{ linha.data.strftime("%d/%m") }}</strong>
+                <br><small class="muted-cell">{{ linha.slot.dia_semana_nome.split("-")[0] }}</small>
+              </td>
+              <td class="muted-cell">{{ linha.slot.hora.strftime("%H:%M") }}</td>
+              <td class="muted-cell">{{ linha.slot.fisioterapeuta.nome }}</td>
+              <td>
+                {% if linha.agendamento %}
+                <strong>{{ linha.agendamento.paciente.nome }}</strong>
+                {% else %}
+                <span class="muted-cell">Livre</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if linha.agendamento %}
+                <span class="role-badge role-badge--{{ 'fisioterapeuta' if linha.agendamento.status == 'REALIZADO' else 'admin' }}">
+                  {{ ROTULOS_DE_STATUS.get(linha.agendamento.status, linha.agendamento.status) }}
+                </span>
+                {% else %}
+                <span class="muted-cell">—</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if linha.agendamento %}
+                <a href="{{ url_for('agenda', data=linha.data.isoformat()) }}">Ver na agenda</a>
+                {% elif linha.data >= hoje %}
+                <a href="{{ url_for('agendar_triagem', data=linha.data.isoformat(), hora=linha.slot.hora.strftime('%H:%M'), fisioterapeuta_id=linha.slot.fisioterapeuta_id) }}">
+                  Agendar
+                </a>
+                {% else %}
+                <span class="muted-cell">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <div class="empty-state__icon" aria-hidden="true">◷</div>
+        <h3>Nenhum horário de triagem definido</h3>
+        <p>
+          Cada profissional reserva alguns horários da semana para o primeiro
+          contato com o paciente. Defina-os para a agenda de triagem aparecer.
+        </p>
+        <a class="button button--primary no-print" href="{{ url_for('horarios_de_triagem') }}">Definir horários</a>
+      </div>
+      {% endif %}
+    </section>
+
+    {% if urgencias %}
+    <section class="panel" style="margin-top:17px;">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Fora da grade de triagem</p>
+          <h2>Urgências da semana</h2>
+        </div>
+        <span class="panel-count no-print">{{ urgencias|length }}</span>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Avaliações de urgência encaixadas fora dos horários fixos</caption>
+          <thead>
+            <tr>
+              <th scope="col">Data</th>
+              <th scope="col">Horário</th>
+              <th scope="col">Profissional</th>
+              <th scope="col">Paciente</th>
+              <th scope="col">Motivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in urgencias %}
+            <tr>
+              <td><strong>{{ item.data.strftime("%d/%m/%Y") }}</strong></td>
+              <td class="muted-cell">{{ item.hora.strftime("%H:%M") }}</td>
+              <td class="muted-cell">{{ item.fisioterapeuta.nome }}</td>
+              <td>{{ item.paciente.nome if item.paciente else "—" }}</td>
+              <td class="muted-cell">{{ item.observacoes or "—" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="panel-note">
+        Fratura, AVC, pré e pós-operatório entram como urgência, encaixados
+        na agenda do profissional com mais horários livres.
+      </p>
+    </section>
+    {% endif %}
+{% endblock %}

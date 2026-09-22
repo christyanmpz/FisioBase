@@ -65,7 +65,9 @@
               <th scope="row" class="grade-hora">{{ horario }}</th>
               {% for dia in dias %}
               {% set itens = grade[horario].get(dia.isoformat(), []) %}
-              <td class="grade-celula{{ ' grade-celula--vazia' if not itens }}">
+              {% set e_triagem = (dia.weekday(), horario) in triagens %}
+              <td class="grade-celula{{ ' grade-celula--vazia' if not itens }}{{ ' grade-celula--triagem' if e_triagem }}">
+                {% if e_triagem and not itens %}<span class="grade-triagem">T</span>{% endif %}
                 {% for item in itens %}
                 <span class="grade-item grade-item--{{ item.tipo|lower }}">
                   {% if item.tipo == "GRUPO" %}
@@ -89,6 +91,7 @@
         <span><i></i> Sessão</span>
         <span><i class="e-avaliacao"></i> Triagem / avaliação</span>
         <span><i class="e-grupo"></i> Grupo</span>
+        <span><i class="e-triagem"></i> Horário reservado para triagem</span>
       </div>
 
       <p class="panel-note print-only">

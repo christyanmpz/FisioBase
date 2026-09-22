@@ -184,6 +184,15 @@ não tem modelo em `models.py`. A chamada do grupo é feita em `agendamentos`,
 como descrito acima, para reaproveitar histórico, cartão e relatórios. Pode
 ser removida quando houver certeza de que está vazia.
 
+### horarios_triagem
+
+Os horários que cada profissional reserva na semana para o primeiro contato
+com o paciente — na planilha da clínica, as células marcadas com "T =". A
+avaliação é agendada neles; urgências (fratura, AVC, pré e pós-operatório)
+entram fora da grade, com o motivo registrado na observação do agendamento.
+`uq_triagem_slot` impede o mesmo horário duas vezes para o mesmo
+profissional, e remover desativa em vez de apagar.
+
 ### feriados
 
 Datas que a geração automática pula. O campo `tipo` distingue `NACIONAL`,

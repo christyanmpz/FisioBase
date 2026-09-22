@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Agendar avaliação · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar">
+      <div>
+        <p class="breadcrumb">Triagem <span>/</span> Nova avaliação</p>
+        <h1>Agendar avaliação</h1>
+      </div>
+      <a class="button button--ghost" href="{{ url_for('agenda_de_triagem') }}">Voltar à triagem</a>
+    </header>
+
+    <form method="post" class="form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="field">
+        <label for="paciente_select">Paciente</label>
+        <input id="paciente_select" list="lista-de-pacientes" type="text"
+               data-autocomplete="paciente_id"
+               placeholder="Digite o nome do paciente" autofocus>
+        <datalist id="lista-de-pacientes">
+          {% for paciente in pacientes %}
+          <option value="{{ paciente.nome }}" data-id="{{ paciente.id }}"></option>
+          {% endfor %}
+        </datalist>
+        <label class="sr-only" for="paciente_id">Paciente selecionado</label>
+        <select id="paciente_id" name="paciente_id" required>
+          <option value="">Selecione</option>
+          {% for paciente in pacientes %}
+          <option value="{{ paciente.id }}">{{ paciente.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {% if current_user.perfil == "ADMIN" %}
+      <div class="field">
+        <label for="fisioterapeuta_id">Profissional</label>
+        <select id="fisioterapeuta_id" name="fisioterapeuta_id" required>
+          <option value="">Selecione</option>
+          {% for profissional in profissionais %}
+          <option value="{{ profissional.id }}"
+                  {% if valores.get('fisioterapeuta_id') == profissional.id|string %}selected{% endif %}>
+            {{ profissional.nome }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+
+      <div class="field">
+        <label for="data">Data</label>
+        <input id="data" name="data" type="date" required
+               min="{{ hoje.isoformat() }}"
+               value="{{ valores.get('data', '') }}">
+      </div>
+
+      <div class="field">
+        <label for="hora">Horário</label>
+        <select id="hora" name="hora" required>
+          <option value="">Selecione</option>
+          {% for horario in horarios %}
+          <option value="{{ horario }}" {% if valores.get('hora') == horario %}selected{% endif %}>
+            {{ horario }}
+          </option>
+          {% endfor %}
+        </select>
+        <small class="field-hint">
+          Fora da urgência, use um dos horários fixos de triagem do profissional.
+        </small>
+      </div>
+
+      <div class="field">
+        <label class="opcao-dia" for="urgencia" style="display:inline-flex; gap:8px; align-items:center;">
+          <input id="urgencia" name="urgencia" type="checkbox" value="1"
+                 {% if valores.get('urgencia') == '1' %}checked{% endif %}>
+          <span>É urgência (encaixe fora dos horários de triagem)</span>
+        </label>
+      </div>
+
+      <div class="field">
+        <label for="motivo">Motivo da urgência</label>
+        <input id="motivo" name="motivo" type="text"
+               placeholder="Fratura, AVC, pré-operatório, pós-operatório"
+               value="{{ valores.get('motivo', '') }}">
+        <small class="field-hint">
+          Obrigatório quando marcar urgência. Fica registrado na agenda.
+        </small>
+      </div>
+
+      <p class="panel-note">
+        A avaliação é o primeiro contato e acontece antes de existir ciclo de
+        tratamento. O ciclo só é aberto depois que o paciente comparecer —
+        e pode não haver ciclo nenhum, se ele sair orientado e com alta.
+      </p>
+
+      <div class="form-actions">
+        <button class="button button--primary" type="submit">Agendar avaliação</button>
+        <a class="button button--ghost" href="{{ url_for('agenda_de_triagem') }}">Cancelar</a>
+      </div>
+    </form>
+{% endblock %}

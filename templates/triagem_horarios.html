@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Horários de triagem · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar">
+      <div>
+        <p class="breadcrumb">Triagem <span>/</span> Horários fixos</p>
+        <h1>Horários de triagem</h1>
+      </div>
+      <a class="button button--ghost" href="{{ url_for('agenda_de_triagem') }}">Voltar à triagem</a>
+    </header>
+
+    <section class="content-grid">
+      <article class="panel panel--wide">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow eyebrow--muted">Reservados na agenda</p>
+            <h2>Horários definidos</h2>
+          </div>
+          <span class="panel-count">{{ horarios|length }}</span>
+        </div>
+
+        {% if horarios %}
+        <div class="table-wrap">
+          <table>
+            <caption class="sr-only">Horários fixos de triagem por profissional</caption>
+            <thead>
+              <tr>
+                <th scope="col">Profissional</th>
+                <th scope="col">Dia</th>
+                <th scope="col">Horário</th>
+                <th scope="col">Ação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for slot in horarios %}
+              <tr>
+                <td><strong>{{ slot.fisioterapeuta.nome }}</strong></td>
+                <td>{{ slot.dia_semana_nome }}</td>
+                <td class="muted-cell">{{ slot.hora.strftime("%H:%M") }}</td>
+                <td>
+                  <form method="post" action="{{ url_for('remover_horario_de_triagem', slot_id=slot.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="button button--ghost button--small" type="submit">Remover</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <div class="empty-state__icon" aria-hidden="true">□</div>
+          <h3>Nenhum horário reservado</h3>
+          <p>A clínica costuma reservar cerca de três horários por semana em cada agenda.</p>
+        </div>
+        {% endif %}
+      </article>
+
+      <aside class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow eyebrow--muted">Novo</p>
+            <h2>Reservar horário</h2>
+          </div>
+        </div>
+
+        <form method="post" class="form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          {% if current_user.perfil == "ADMIN" %}
+          <div class="field">
+            <label for="fisioterapeuta_id">Profissional</label>
+            <select id="fisioterapeuta_id" name="fisioterapeuta_id" required>
+              <option value="">Selecione</option>
+              {% for profissional in profissionais %}
+              <option value="{{ profissional.id }}">{{ profissional.nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% else %}
+          <input type="hidden" name="fisioterapeuta_id" value="{{ current_user.id }}">
+          {% endif %}
+
+          <div class="field">
+            <label for="dia_semana">Dia da semana</label>
+            <select id="dia_semana" name="dia_semana" required>
+              <option value="">Selecione</option>
+              {% for numero, nome in dias %}
+              <option value="{{ numero }}">{{ nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="hora">Horário</label>
+            <select id="hora" name="hora" required>
+              <option value="">Selecione</option>
+              {% for horario in grade %}
+              <option value="{{ horario }}">{{ horario }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <p class="panel-note">
+            Esses horários aparecem marcados na grade semanal do profissional
+            e são os que a recepção usa para encaixar a avaliação.
+          </p>
+
+          <div class="form-actions">
+            <button class="button button--primary" type="submit">Reservar</button>
+          </div>
+        </form>
+      </aside>
+    </section>
+{% endblock %}

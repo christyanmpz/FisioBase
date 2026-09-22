@@ -397,3 +397,43 @@ class GroupEvolution(db.Model):
         if self.fisioterapeuta_id == usuario.id:
             return True
         return self.grupo is not None and self.grupo.fisioterapeuta_id == usuario.id
+
+
+class ScreeningSlot(db.Model):
+    """Horário fixo de triagem de um profissional.
+
+    A clínica reserva alguns horários por semana em cada agenda para o
+    primeiro contato com o paciente — na planilha são as células marcadas
+    com "T =". São esses horários que a recepção usa para encaixar a
+    avaliação, antes de existir qualquer ciclo de tratamento.
+
+    Fica um por (profissional, dia da semana, hora); desativar em vez de
+    apagar preserva o histórico de quem foi atendido ali.
+    """
+
+    __tablename__ = "horarios_triagem"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "fisioterapeuta_id", "dia_semana", "hora", name="uq_triagem_slot"
+        ),
+        db.CheckConstraint(
+            "dia_semana >= 0 AND dia_semana <= 6", name="chk_triagem_dia"
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    fisioterapeuta_id = db.Column(
+        db.Integer, db.ForeignKey("usuarios.id"), nullable=False
+    )
+    dia_semana = db.Column(db.SmallInteger, nullable=False)
+    hora = db.Column(db.Time, nullable=False)
+    ativo = db.Column(db.Boolean, nullable=False, default=True)
+    criado_em = db.Column(
+        db.DateTime(timezone=True), nullable=False, server_default=db.func.now()
+    )
+
+    fisioterapeuta = db.relationship("User", backref="horarios_de_triagem")
+
+    @property
+    def dia_semana_nome(self) -> str:
+        return WEEKDAY_NAMES[self.dia_semana]
