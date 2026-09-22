@@ -17,6 +17,12 @@ GROUP_CAPACITY_MIN = 1
 GROUP_CAPACITY_MAX = 20
 GROUP_CAPACITY_DEFAULT = 14
 
+# Cada encontro de grupo dura 1 hora e vale por 2 sessões individuais.
+# Seis encontros fecham o tratamento em 12 sessões.
+GROUP_WEEKS_DEFAULT = 6
+GROUP_WEEKS_MAX = 52
+SESSOES_POR_ENCONTRO_DE_GRUPO = 2
+
 # Índice = valor de grupos.dia_semana (convenção do Python: 0 = segunda).
 WEEKDAY_NAMES = (
     "Segunda-feira",
@@ -145,6 +151,9 @@ class Group(db.Model):
             "regiao IN ('OMBRO', 'JOELHO', 'COLUNA', 'OUTRO')",
             name="chk_grupo_regiao",
         ),
+        db.CheckConstraint(
+            "total_semanas >= 1 AND total_semanas <= 52", name="chk_grupo_semanas"
+        ),
     )
 
     id = db.Column(db.Integer, primary_key=True)
@@ -157,6 +166,12 @@ class Group(db.Model):
     hora = db.Column(db.Time, nullable=True)
     capacidade_max = db.Column(
         db.Integer, nullable=False, default=GROUP_CAPACITY_DEFAULT
+    )
+    # O tratamento em grupo é fechado: 6 encontros semanais de 1 hora, que
+    # equivalem a 12 sessões individuais. Fica configurável porque a clínica
+    # pode rever essa regra.
+    total_semanas = db.Column(
+        db.Integer, nullable=False, default=GROUP_WEEKS_DEFAULT, server_default="6"
     )
     ativo = db.Column(db.Boolean, nullable=False, default=True)
     criado_em = db.Column(

@@ -9,7 +9,13 @@
         <p class="breadcrumb">Grupos <span>/</span> Composição</p>
         <h1>{{ grupo.nome }}</h1>
       </div>
-      <a class="button button--ghost" href="{{ url_for('listar_grupos') }}">Voltar</a>
+      <div class="table-actions">
+        <a class="button button--ghost" href="{{ url_for('listar_grupos') }}">Voltar</a>
+        <a class="button button--ghost"
+           href="{{ url_for('gerar_encontros_do_grupo', grupo_id=grupo.id) }}">Encontros</a>
+        <a class="button button--primary"
+           href="{{ url_for('presenca_do_grupo', grupo_id=grupo.id) }}">Lista de presença</a>
+      </div>
     </header>
 
     <section class="stats-grid" aria-label="Resumo do grupo">
@@ -64,7 +70,7 @@
             <tr>
               <th scope="col">Paciente</th>
               <th scope="col">Entrada</th>
-              <th scope="col">Ciclo</th>
+              <th scope="col">Tratamento</th>
               <th scope="col">Ações</th>
             </tr>
           </thead>
@@ -84,10 +90,16 @@
                 {% else %}—{% endif %}
               </td>
               <td>
-                <form method="post" action="{{ url_for('registrar_saida_do_grupo', grupo_id=grupo.id, participacao_id=participacao.id) }}">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <button class="button button--ghost button--small" type="submit">Registrar saída</button>
-                </form>
+                <div class="table-actions">
+                  {% if participacao.ciclo %}
+                  <a class="button button--ghost button--small"
+                     href="{{ url_for('cartao_do_ciclo', ciclo_id=participacao.ciclo.id) }}">Cartão</a>
+                  {% endif %}
+                  <form method="post" action="{{ url_for('registrar_saida_do_grupo', grupo_id=grupo.id, participacao_id=participacao.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="button button--ghost button--small" type="submit">Registrar saída</button>
+                  </form>
+                </div>
               </td>
             </tr>
             {% endfor %}
@@ -143,20 +155,15 @@
           <input type="hidden" id="paciente_id" name="paciente_id">
         </div>
 
-        <div class="field">
-          <label for="ciclo_id">Ciclo de tratamento (opcional)</label>
-          <select id="ciclo_id" name="ciclo_id">
-            <option value="">Sem vínculo com ciclo</option>
-            {% for paciente in disponiveis %}
-              {% for ciclo in ciclos_por_paciente[paciente.id] %}
-              <option value="{{ ciclo.id }}" data-paciente="{{ paciente.id }}">
-                {{ paciente.nome }} · {{ ciclo.regiao|capitalize }} · avaliação em {{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}
-              </option>
-              {% endfor %}
-            {% endfor %}
-          </select>
-          <small>Se escolher um ciclo, ele precisa ser do mesmo paciente e estar ativo.</small>
-        </div>
+        <p class="panel-note">
+          {% if encontros %}
+          O paciente entra nos {{ encontros }} encontro{{ "s" if encontros != 1 }} que
+          ainda faltam e recebe o cartão com as datas.
+          {% else %}
+          Este grupo ainda não tem calendário. Gere os encontros para que os
+          inscritos recebam o ciclo e o cartão com as datas.
+          {% endif %}
+        </p>
 
         <div class="form-actions">
           <button class="button button--primary" type="submit">Adicionar ao grupo</button>
@@ -167,28 +174,11 @@
         (function () {
           const paciente = document.getElementById("paciente_id");
           const select = document.getElementById("paciente_select");
-          const ciclo = document.getElementById("ciclo_id");
-          if (!paciente || !ciclo || !select) return;
+          if (!paciente || !select) return;
 
           select.addEventListener("change", function () {
             paciente.value = select.value;
-            paciente.dispatchEvent(new Event("change", { bubbles: true }));
           });
-          const opcoes = Array.from(ciclo.options);
-
-          function filtrarCiclos() {
-            const escolhido = paciente.value;
-            ciclo.innerHTML = "";
-            opcoes.forEach(function (opcao) {
-              const dono = opcao.dataset.paciente;
-              if (!dono || dono === escolhido) {
-                ciclo.appendChild(opcao);
-              }
-            });
-          }
-
-          paciente.addEventListener("change", filtrarCiclos);
-          filtrarCiclos();
         })();
       </script>
       {% else %}

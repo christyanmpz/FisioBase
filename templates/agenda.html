@@ -58,13 +58,20 @@
               <td><strong>{{ item.hora.strftime("%H:%M") }}</strong></td>
               <td>
                 <div class="table-person">
+                  {% if item.tipo == "GRUPO" %}
+                  <span class="avatar avatar--table avatar--blue" aria-hidden="true">G</span>
+                  <strong>{{ item.grupo.nome if item.grupo else "Grupo" }}</strong>
+                  {% else %}
                   <span class="avatar avatar--table avatar--green" aria-hidden="true">{{ item.paciente.nome[0] if item.paciente else "?" }}</span>
                   <strong>{{ item.paciente.nome if item.paciente else "—" }}</strong>
+                  {% endif %}
                 </div>
               </td>
               <td>
                 <span class="role-badge role-badge--{{ 'admin' if item.tipo == 'AVALIACAO' else 'fisioterapeuta' }}">
-                  {{ "Avaliação" if item.tipo == "AVALIACAO" else "Sessão" }}
+                  {% if item.tipo == "AVALIACAO" %}Avaliação
+                  {%- elif item.tipo == "GRUPO" %}Grupo
+                  {%- else %}Sessão{% endif %}
                 </span>
               </td>
               <td class="muted-cell">

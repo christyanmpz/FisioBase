@@ -38,7 +38,10 @@ from models import (
     GROUP_CAPACITY_MAX,
     GROUP_CAPACITY_MIN,
     GROUP_REGIONS,
+    GROUP_WEEKS_DEFAULT,
+    GROUP_WEEKS_MAX,
     PHYSIOTHERAPIST_PROFILE,
+    SESSOES_POR_ENCONTRO_DE_GRUPO,
     WEEKDAY_NAMES,
     Appointment,
     Card,
@@ -391,8 +394,12 @@ def register_routes(app: Flask) -> None:
             if inicio.month == 12
             else date(inicio.year, inicio.month + 1, 1)
         )
+        # O bloco do grupo na agenda não é atendimento: quem conta é a
+        # presença de cada inscrito, registrada uma por paciente.
         itens = consulta_base.filter(
-            Appointment.data >= inicio, Appointment.data < fim
+            Appointment.data >= inicio,
+            Appointment.data < fim,
+            Appointment.tipo != "GRUPO",
         ).all()
         realizados = sum(1 for i in itens if i.status in STATUS_DE_ATENDIMENTO)
         faltas = sum(1 for i in itens if i.status in STATUS_DE_FALTA)
@@ -1131,6 +1138,15 @@ def register_routes(app: Flask) -> None:
             flash("Só é possível gerar sessões de um ciclo ativo.", "error")
             return form(400, valores)
 
+        # O ciclo de grupo segue o calendário do grupo, não uma grade própria.
+        if ciclo.modalidade == "GRUPO":
+            flash(
+                "As datas de um tratamento em grupo vêm do próprio grupo. "
+                "Gere os encontros na tela do grupo.",
+                "error",
+            )
+            return form(400, valores)
+
         if restantes == 0:
             flash(
                 f"Este ciclo já tem as {ciclo.total_sessoes} sessões agendadas.",
@@ -1271,6 +1287,14 @@ def register_routes(app: Flask) -> None:
 
         if ciclo.status != "ATIVO":
             flash("Só é possível remarcar as sessões de um ciclo ativo.", "error")
+            return form(400, valores)
+
+        # Remarcar aqui separaria o paciente do resto do grupo.
+        if ciclo.modalidade == "GRUPO":
+            flash(
+                "Para mudar as datas de um tratamento em grupo, altere o grupo.",
+                "error",
+            )
             return form(400, valores)
 
         if not pendentes:
@@ -1440,12 +1464,29 @@ def register_routes(app: Flask) -> None:
             Appointment.hora == hora,
             Appointment.status != "CANCELADO",
             Appointment.tipo != "GRUPO",
+            # A presença de cada inscrito no grupo não ocupa uma vaga da
+            # agenda individual: quem segura o horário é o encontro do grupo.
+            Appointment.grupo_id.is_(None),
         )
         if ignorar_id is not None:
             consulta = consulta.filter(Appointment.id != ignorar_id)
         if ignorar_ids:
             consulta = consulta.filter(Appointment.id.notin_(tuple(ignorar_ids)))
         return consulta.count() < LIMITE_POR_HORARIO
+
+    def _sem_presenca_de_grupo(consulta):
+        """Tira da agenda a presença individual de quem está em grupo.
+
+        O encontro do grupo já ocupa a grade uma vez, com o nome do grupo.
+        Listar ali os 14 inscritos entupiria a tela e não é assim que a
+        clínica lê a agenda — a chamada é feita na lista de presença.
+        """
+        return consulta.filter(
+            db.or_(
+                Appointment.grupo_id.is_(None),
+                Appointment.paciente_id.is_(None),
+            )
+        )
 
     def _somente_ciclos_ativos(consulta):
         """Tira da agenda as sessões de ciclos já encerrados.
@@ -1473,8 +1514,10 @@ def register_routes(app: Flask) -> None:
         except ValueError:
             data_agenda = hoje()
 
-        consulta = _somente_ciclos_ativos(
-            Appointment.query.filter(Appointment.data == data_agenda)
+        consulta = _sem_presenca_de_grupo(
+            _somente_ciclos_ativos(
+                Appointment.query.filter(Appointment.data == data_agenda)
+            )
         )
         if current_user.perfil != ADMIN_PROFILE:
             consulta = consulta.filter(Appointment.fisioterapeuta_id == current_user.id)
@@ -1548,12 +1591,14 @@ def register_routes(app: Flask) -> None:
                 )
 
         agendamentos = (
-            _somente_ciclos_ativos(
-                Appointment.query.filter(
-                    Appointment.fisioterapeuta_id == escolhido.id,
-                    Appointment.data >= dias[0],
-                    Appointment.data <= dias[-1],
-                    Appointment.status != "CANCELADO",
+            _sem_presenca_de_grupo(
+                _somente_ciclos_ativos(
+                    Appointment.query.filter(
+                        Appointment.fisioterapeuta_id == escolhido.id,
+                        Appointment.data >= dias[0],
+                        Appointment.data <= dias[-1],
+                        Appointment.status != "CANCELADO",
+                    )
                 )
             )
             .order_by(Appointment.data, Appointment.hora)
@@ -1587,9 +1632,12 @@ def register_routes(app: Flask) -> None:
         if current_user.perfil != ADMIN_PROFILE:
             profissionais = [p for p in profissionais if p.id == current_user.id]
 
-        consulta = _somente_ciclos_ativos(
-            Appointment.query.filter(
-                Appointment.data == data_agenda, Appointment.status != "CANCELADO"
+        consulta = _sem_presenca_de_grupo(
+            _somente_ciclos_ativos(
+                Appointment.query.filter(
+                    Appointment.data == data_agenda,
+                    Appointment.status != "CANCELADO",
+                )
             )
         )
         if current_user.perfil != ADMIN_PROFILE:
@@ -1622,9 +1670,11 @@ def register_routes(app: Flask) -> None:
                 .all()
             )
 
+        # Ciclo de grupo não entra aqui: as datas dele vêm do grupo.
         ciclos = (
             TreatmentCycle.query.filter(
                 TreatmentCycle.status == "ATIVO",
+                TreatmentCycle.modalidade != "GRUPO",
                 TreatmentCycle.paciente_id.in_([p.id for p in pacientes] or [0]),
             )
             .order_by(TreatmentCycle.data_avaliacao.desc())
@@ -1872,12 +1922,17 @@ def register_routes(app: Flask) -> None:
         sessão é o tratamento, a triagem é o primeiro contato. Comparecimento
         e falta justificada contam como atendimento; só a falta não avisada
         entra como falta.
+
+        O encontro do grupo em si não é contado: ele é o bloco que segura o
+        horário na agenda. Quem conta é a presença de cada inscrito, que
+        entra como sessão igual à do atendimento individual.
         """
+        itens = [i for i in itens if i.tipo != "GRUPO"]
 
         def contar(tipos, status):
             return sum(1 for i in itens if i.tipo in tipos and i.status in status)
 
-        sessoes = ("SESSAO", "GRUPO")
+        sessoes = ("SESSAO",)
         triagens = ("AVALIACAO",)
 
         sessoes_feitas = contar(sessoes, STATUS_DE_ATENDIMENTO)
@@ -1957,7 +2012,9 @@ def register_routes(app: Flask) -> None:
             )
             ciclos = ciclos.filter(TreatmentCycle.fisioterapeuta_id == current_user.id)
 
-        itens = agendamentos.all()
+        # O bloco do grupo na agenda é excluído dos números: quem conta é a
+        # presença de cada inscrito.
+        itens = agendamentos.filter(Appointment.tipo != "GRUPO").all()
         lista_ciclos = ciclos.all()
 
         def contar(status):
@@ -2397,15 +2454,184 @@ def register_routes(app: Flask) -> None:
             p for p in consulta.order_by(Patient.nome).all() if p.id not in ja_no_grupo
         ]
 
-    def _ciclos_ativos_do_paciente(paciente_id):
-        return (
-            TreatmentCycle.query.filter(
-                TreatmentCycle.paciente_id == paciente_id,
-                TreatmentCycle.status == "ATIVO",
-            )
-            .order_by(TreatmentCycle.data_avaliacao.desc())
-            .all()
+    def _encontros_do_grupo(grupo, a_partir_de=None):
+        """Os encontros já marcados do grupo, do mais antigo ao mais novo."""
+        consulta = Appointment.query.filter(
+            Appointment.grupo_id == grupo.id,
+            Appointment.tipo == "GRUPO",
+            Appointment.status != "CANCELADO",
         )
+        if a_partir_de is not None:
+            consulta = consulta.filter(Appointment.data >= a_partir_de)
+        return consulta.order_by(Appointment.data).all()
+
+    def _ciclo_do_grupo(grupo, paciente, encontros):
+        """Abre o ciclo do paciente para este grupo.
+
+        O tratamento em grupo é fechado: cada encontro de 1 hora vale por 2
+        sessões individuais. Quem entra no meio do caminho recebe um ciclo do
+        tamanho do que ainda falta, senão o cartão prometeria datas que já
+        passaram.
+        """
+        ciclo = TreatmentCycle(
+            paciente_id=paciente.id,
+            fisioterapeuta_id=grupo.fisioterapeuta_id,
+            regiao=grupo.regiao,
+            modalidade="GRUPO",
+            data_avaliacao=hoje(),
+            total_sessoes=len(encontros) * SESSOES_POR_ENCONTRO_DE_GRUPO,
+            status="ATIVO",
+            observacoes=f"Tratamento em grupo: {grupo.nome}.",
+        )
+        db.session.add(ciclo)
+        db.session.flush()
+        return ciclo
+
+    def _inscrever_nos_encontros(grupo, paciente, ciclo, encontros):
+        """Cria a linha de presença do paciente em cada encontro do grupo.
+
+        Uma linha por paciente por data é o que faz a participação aparecer
+        no histórico dele, no cartão e nos relatórios — a mesma estrutura do
+        atendimento individual, com o grupo anotado junto.
+        """
+        for ordem, encontro in enumerate(encontros, start=1):
+            db.session.add(
+                Appointment(
+                    tipo="SESSAO",
+                    paciente_id=paciente.id,
+                    grupo_id=grupo.id,
+                    ciclo_id=ciclo.id,
+                    fisioterapeuta_id=grupo.fisioterapeuta_id,
+                    data=encontro.data,
+                    hora=encontro.hora,
+                    duracao_min=encontro.duracao_min,
+                    status="AGENDADO",
+                    numero_sessao=ordem * SESSOES_POR_ENCONTRO_DE_GRUPO,
+                )
+            )
+
+    @app.route("/grupos/<int:grupo_id>/sessoes", methods=["GET", "POST"])
+    @login_required
+    def gerar_encontros_do_grupo(grupo_id: int):
+        """Monta o calendário do grupo: um encontro por semana.
+
+        Vira o ciclo padrão do grupo — quem for inscrito depois entra nas
+        datas que ainda faltam e recebe o cartão com elas.
+        """
+        grupo = db.session.get(Group, grupo_id)
+        if grupo is None:
+            abort(404)
+        if not grupo.acessivel_por(current_user):
+            abort(403)
+
+        marcados = _encontros_do_grupo(grupo)
+
+        def form(codigo=200, valores=None):
+            return (
+                render_template(
+                    "grupo_sessoes.html",
+                    grupo=grupo,
+                    marcados=marcados,
+                    valores=valores or {},
+                    hoje=hoje(),
+                    semanas_padrao=grupo.total_semanas,
+                ),
+                codigo,
+            )
+
+        if request.method == "GET":
+            return form()
+
+        valores = {
+            "inicio": request.form.get("inicio", "").strip(),
+            "semanas": request.form.get("semanas", "").strip(),
+        }
+
+        if not grupo.ativo:
+            flash("Grupo desativado não recebe encontros. Reative-o antes.", "error")
+            return form(400, valores)
+
+        if marcados:
+            flash(
+                "Este grupo já tem encontros marcados. Para refazer o "
+                "calendário, cancele os encontros existentes primeiro.",
+                "error",
+            )
+            return form(400, valores)
+
+        if grupo.dia_semana is None or grupo.hora is None:
+            flash("Defina o dia e o horário do grupo antes de gerar.", "error")
+            return form(400, valores)
+
+        try:
+            inicio = date.fromisoformat(valores["inicio"])
+        except ValueError:
+            flash("Informe a data do primeiro encontro.", "error")
+            return form(400, valores)
+
+        if inicio < hoje():
+            flash("A data do primeiro encontro não pode estar no passado.", "error")
+            return form(400, valores)
+
+        try:
+            semanas = int(valores["semanas"] or grupo.total_semanas)
+        except ValueError:
+            flash("Número de semanas inválido.", "error")
+            return form(400, valores)
+
+        if not 1 <= semanas <= GROUP_WEEKS_MAX:
+            flash(
+                f"O número de semanas deve estar entre 1 e {GROUP_WEEKS_MAX}.", "error"
+            )
+            return form(400, valores)
+
+        datas, pulados = _datas_das_sessoes(
+            inicio,
+            {grupo.dia_semana},
+            semanas,
+            _feriados_no_periodo(inicio, inicio + timedelta(days=400)),
+        )
+
+        if len(datas) < semanas:
+            flash("Não foi possível gerar todas as datas do grupo.", "error")
+            return form(400, valores)
+
+        for data in datas:
+            db.session.add(
+                Appointment(
+                    tipo="GRUPO",
+                    grupo_id=grupo.id,
+                    fisioterapeuta_id=grupo.fisioterapeuta_id,
+                    data=data,
+                    hora=grupo.hora,
+                    duracao_min=60,
+                    status="AGENDADO",
+                )
+            )
+
+        grupo.total_semanas = semanas
+        db.session.flush()
+
+        # Quem já estava inscrito antes do calendário existir entra agora.
+        encontros = _encontros_do_grupo(grupo)
+        for participacao in grupo.participacoes_ativas:
+            if participacao.ciclo_id is not None:
+                continue
+            ciclo = _ciclo_do_grupo(grupo, participacao.paciente, encontros)
+            participacao.ciclo_id = ciclo.id
+            _inscrever_nos_encontros(grupo, participacao.paciente, ciclo, encontros)
+
+        db.session.commit()
+
+        if pulados:
+            nomes = ", ".join(f"{d.strftime('%d/%m')} ({nome})" for d, nome in pulados)
+            flash(f"Datas puladas por feriado: {nomes}.", "info")
+        flash(
+            f"{len(datas)} encontro(s) marcado(s), equivalentes a "
+            f"{len(datas) * SESSOES_POR_ENCONTRO_DE_GRUPO} sessões.",
+            "success",
+        )
+        return redirect(url_for("composicao_do_grupo", grupo_id=grupo.id))
 
     @app.get("/grupos/<int:grupo_id>/pacientes")
     @login_required
@@ -2423,9 +2649,7 @@ def register_routes(app: Flask) -> None:
             participacoes=grupo.participacoes_ativas,
             historico=[p for p in grupo.participacoes if p.data_saida is not None],
             disponiveis=disponiveis,
-            ciclos_por_paciente={
-                p.id: _ciclos_ativos_do_paciente(p.id) for p in disponiveis
-            },
+            encontros=len(_encontros_do_grupo(grupo, a_partir_de=hoje())),
         )
 
     @app.post("/grupos/<int:grupo_id>/pacientes")
@@ -2462,17 +2686,13 @@ def register_routes(app: Flask) -> None:
             )
             return voltar()
 
-        ciclo_id = request.form.get("ciclo_id", "").strip()
+        # O ciclo do paciente sai do próprio grupo: o profissional não
+        # escolhe mais um ciclo à mão na hora de inscrever.
+        encontros = _encontros_do_grupo(grupo, a_partir_de=hoje())
         ciclo = None
-        if ciclo_id:
-            ciclo = db.session.get(TreatmentCycle, int(ciclo_id))
-            if (
-                ciclo is None
-                or ciclo.paciente_id != paciente.id
-                or ciclo.status != "ATIVO"
-            ):
-                flash("Selecione um ciclo ativo deste paciente.", "error")
-                return voltar()
+        if encontros:
+            ciclo = _ciclo_do_grupo(grupo, paciente, encontros)
+            _inscrever_nos_encontros(grupo, paciente, ciclo, encontros)
 
         db.session.add(
             GroupPatient(
@@ -2483,7 +2703,114 @@ def register_routes(app: Flask) -> None:
             )
         )
         db.session.commit()
-        flash(f"{paciente.nome} entrou no grupo.", "success")
+
+        if ciclo is None:
+            flash(
+                f"{paciente.nome} entrou no grupo. Gere os encontros para "
+                "criar o cartão com as datas.",
+                "info",
+            )
+        else:
+            flash(
+                f"{paciente.nome} entrou no grupo, com {len(encontros)} "
+                f"encontro(s) e {ciclo.total_sessoes} sessões no cartão.",
+                "success",
+            )
+        return voltar()
+
+    @app.get("/grupos/<int:grupo_id>/presenca")
+    @login_required
+    def presenca_do_grupo(grupo_id: int):
+        """Lista de presença do grupo: inscritos nas linhas, datas nas colunas.
+
+        É a folha que hoje é impressa e preenchida à mão, e que fica anexada
+        ao prontuário de papel.
+        """
+        grupo = db.session.get(Group, grupo_id)
+        if grupo is None:
+            abort(404)
+        if not grupo.acessivel_por(current_user):
+            abort(403)
+
+        encontros = _encontros_do_grupo(grupo)
+        datas = [e.data for e in encontros]
+
+        presencas = Appointment.query.filter(
+            Appointment.grupo_id == grupo.id,
+            Appointment.paciente_id.isnot(None),
+        ).all()
+
+        # {paciente_id: {data: agendamento}} — o template lê célula a célula.
+        grade = {}
+        for item in presencas:
+            grade.setdefault(item.paciente_id, {})[item.data] = item
+
+        inscritos = sorted(
+            grupo.participacoes,
+            key=lambda p: (p.data_saida is not None, p.paciente.nome),
+        )
+
+        return render_template(
+            "grupo_presenca.html",
+            grupo=grupo,
+            inscritos=inscritos,
+            datas=datas,
+            grade=grade,
+            hoje=hoje(),
+            emitido_em=hoje(),
+        )
+
+    @app.post("/grupos/<int:grupo_id>/presenca/<int:agendamento_id>")
+    @login_required
+    def marcar_presenca_no_grupo(grupo_id: int, agendamento_id: int):
+        """Registra presença, falta ou falta justificada de um inscrito.
+
+        Mesma regra do atendimento individual: a ausência pode ser lançada
+        antes do dia, porque o paciente avisa com antecedência; só o
+        comparecimento espera a data chegar.
+        """
+        grupo = db.session.get(Group, grupo_id)
+        if grupo is None:
+            abort(404)
+        if not grupo.acessivel_por(current_user):
+            abort(403)
+
+        presenca = db.session.get(Appointment, agendamento_id)
+        if presenca is None or presenca.grupo_id != grupo.id:
+            abort(404)
+        if presenca.paciente_id is None:
+            abort(404)
+
+        def voltar():
+            return redirect(url_for("presenca_do_grupo", grupo_id=grupo.id))
+
+        novo_status = request.form.get("status", "").strip().upper()
+        if novo_status not in STATUS_AGENDAMENTO:
+            flash("Situação inválida.", "error")
+            return voltar()
+
+        if novo_status in STATUS_SO_A_PARTIR_DO_DIA and presenca.data > hoje():
+            flash(
+                "O comparecimento só pode ser registrado a partir do dia do encontro.",
+                "error",
+            )
+            return voltar()
+
+        if novo_status == "FALTA_JUSTIFICADA":
+            motivo = request.form.get("justificativa", "").strip()
+            if not motivo:
+                flash("Informe o motivo da falta justificada.", "error")
+                return voltar()
+            presenca.observacoes = motivo
+
+        presenca.status = novo_status
+        db.session.commit()
+        flash(
+            f"{presenca.paciente.nome}: "
+            f"{ROTULOS_DE_STATUS.get(novo_status, novo_status).lower()} em "
+            f"{presenca.data.strftime('%d/%m/%Y')}.",
+            "success",
+        )
         return voltar()
 
     @app.post("/grupos/<int:grupo_id>/pacientes/<int:participacao_id>/saida")

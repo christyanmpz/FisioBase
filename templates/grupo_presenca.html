@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Lista de presença · {{ grupo.nome }}{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% macro sigla(status) -%}
+  {%- if status == "REALIZADO" -%}P
+  {%- elif status == "FALTOU" -%}F
+  {%- elif status == "FALTA_JUSTIFICADA" -%}FJ
+  {%- elif status == "CANCELADO" -%}C
+  {%- else -%}·
+  {%- endif -%}
+{%- endmacro %}
+
+{% block body %}
+    <header class="topbar no-print">
+      <div>
+        <p class="breadcrumb">Grupos <span>/</span> {{ grupo.nome }}</p>
+        <h1>Lista de presença</h1>
+      </div>
+      <div class="table-actions">
+        <a class="button button--ghost" href="{{ url_for('composicao_do_grupo', grupo_id=grupo.id) }}">Voltar ao grupo</a>
+        <button class="button button--primary" type="button" onclick="window.print()">Imprimir</button>
+      </div>
+    </header>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">
+            {{ grupo.regiao|capitalize }} ·
+            {{ grupo.dia_semana_nome }}
+            {% if grupo.hora %}às {{ grupo.hora.strftime("%H:%M") }}{% endif %}
+          </p>
+          <h2>{{ grupo.nome }}</h2>
+        </div>
+        <span class="panel-count no-print">
+          {{ inscritos|length }} inscrito{{ "s" if inscritos|length != 1 }} ·
+          {{ datas|length }} encontro{{ "s" if datas|length != 1 }}
+        </span>
+      </div>
+
+      {% if not datas %}
+      <div class="empty-state">
+        <div class="empty-state__icon" aria-hidden="true">◷</div>
+        <h3>Este grupo ainda não tem datas</h3>
+        <p>Monte o calendário do grupo para a lista de presença aparecer.</p>
+        <a class="button button--primary no-print"
+           href="{{ url_for('gerar_encontros_do_grupo', grupo_id=grupo.id) }}">Gerar encontros</a>
+      </div>
+      {% elif not inscritos %}
+      <div class="empty-state">
+        <div class="empty-state__icon" aria-hidden="true">◷</div>
+        <h3>Nenhum paciente inscrito</h3>
+        <p>Inscreva os pacientes na composição do grupo.</p>
+        <a class="button button--primary no-print"
+           href="{{ url_for('composicao_do_grupo', grupo_id=grupo.id) }}">Compor o grupo</a>
+      </div>
+      {% else %}
+      <div class="table-wrap">
+        <table class="grade">
+          <caption class="sr-only">Presença de cada inscrito em cada data do grupo</caption>
+          <thead>
+            <tr>
+              <th scope="col">Paciente</th>
+              {% for data in datas %}
+              <th scope="col">{{ data.strftime("%d/%m") }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for inscrito in inscritos %}
+            <tr>
+              <th scope="row" style="text-align:left;">
+                {{ inscrito.paciente.nome }}
+                {% if inscrito.data_saida %}
+                <small class="muted-cell">saiu em {{ inscrito.data_saida.strftime("%d/%m") }}</small>
+                {% endif %}
+              </th>
+              {% for data in datas %}
+              {% set presenca = grade.get(inscrito.paciente_id, {}).get(data) %}
+              <td class="grade-celula{{ ' grade-celula--vazia' if not presenca }}">
+                {% if presenca %}
+                <span class="presenca presenca--{{ presenca.status|lower }}"
+                      title="{{ ROTULOS_DE_STATUS.get(presenca.status, presenca.status) }}{% if presenca.observacoes %} — {{ presenca.observacoes }}{% endif %}">
+                  {{ sigla(presenca.status) }}
+                </span>
+                {% else %}
+                <span class="muted-cell">—</span>
+                {% endif %}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grade-legenda">
+        <span><strong>P</strong> Compareceu</span>
+        <span><strong>FJ</strong> Falta justificada</span>
+        <span><strong>F</strong> Faltou</span>
+        <span><strong>·</strong> Ainda não registrado</span>
+      </div>
+
+      <p class="panel-note">
+        Comparecimento e falta justificada contam como atendimento. Cada
+        presença vale por 2 sessões no histórico do paciente. No grupo não
+        há reposição de encontro perdido.
+      </p>
+      {% endif %}
+    </section>
+
+    {% if datas and inscritos %}
+    <section class="panel no-print" style="margin-top:17px;">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Chamada</p>
+          <h2>Registrar presença</h2>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Registro de presença por paciente e data</caption>
+          <thead>
+            <tr>
+              <th scope="col">Paciente</th>
+              <th scope="col">Data</th>
+              <th scope="col">Situação</th>
+              <th scope="col">Registrar</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inscrito in inscritos if not inscrito.data_saida %}
+            {% for data in datas %}
+            {% set presenca = grade.get(inscrito.paciente_id, {}).get(data) %}
+            {% if presenca %}
+            <tr>
+              <td><strong>{{ inscrito.paciente.nome }}</strong></td>
+              <td class="muted-cell">{{ data.strftime("%d/%m/%Y") }}</td>
+              <td>
+                <span class="role-badge role-badge--{{ 'fisioterapeuta' if presenca.status == 'REALIZADO' else 'admin' }}">
+                  {{ ROTULOS_DE_STATUS.get(presenca.status, presenca.status) }}
+                </span>
+              </td>
+              <td>
+                <form method="post"
+                      action="{{ url_for('marcar_presenca_no_grupo', grupo_id=grupo.id, agendamento_id=presenca.id) }}"
+                      style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <label class="sr-only" for="st-{{ presenca.id }}">Situação</label>
+                  <select id="st-{{ presenca.id }}" name="status" required
+                          style="padding:7px 9px; border:1px solid var(--line); border-radius:7px; font-size:0.72rem;">
+                    {% for valor in ["AGENDADO", "REALIZADO", "FALTA_JUSTIFICADA", "FALTOU"] %}
+                    <option value="{{ valor }}" {% if presenca.status == valor %}selected{% endif %}>
+                      {{ ROTULOS_DE_STATUS.get(valor, valor) }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                  <label class="sr-only" for="ju-{{ presenca.id }}">Motivo da falta justificada</label>
+                  <input id="ju-{{ presenca.id }}" name="justificativa" type="text"
+                         placeholder="Motivo, se justificada"
+                         value="{{ presenca.observacoes or '' }}"
+                         style="padding:7px 9px; border:1px solid var(--line); border-radius:7px; font-size:0.72rem; min-width:150px;">
+                  <button class="button button--ghost button--small" type="submit">Salvar</button>
+                </form>
+              </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+
+    <p class="panel-note print-only">
+      FisioBase — impresso em {{ emitido_em.strftime("%d/%m/%Y") }}
+    </p>
+{% endblock %}

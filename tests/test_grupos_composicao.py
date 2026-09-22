@@ -107,7 +107,20 @@ def test_condutor_adiciona_paciente_ao_grupo(client, app):
     assert lista[0].data_saida is None
 
 
-def test_adicionar_vinculando_um_ciclo_ativo(client, app):
+def test_sem_encontros_o_paciente_entra_sem_ciclo(client, app):
+    """Grupo sem calendário ainda aceita inscrição; o ciclo vem depois."""
+    id_fisio = id_do_usuario(app, "fisio@teste.com")
+    id_grupo = criar_grupo(app, id_fisio)
+    id_paciente = criar_paciente(app, id_fisio)
+
+    fazer_login(client, "fisio@teste.com", SENHA_FISIO)
+    adicionar(client, id_grupo, id_paciente)
+
+    assert ativas(app, id_grupo)[0].ciclo_id is None
+
+
+def test_ciclo_enviado_pelo_formulario_e_ignorado(client, app):
+    """O ciclo do grupo é definido pelo grupo, não escolhido na inscrição."""
     id_fisio = id_do_usuario(app, "fisio@teste.com")
     id_grupo = criar_grupo(app, id_fisio)
     id_paciente = criar_paciente(app, id_fisio)
@@ -116,32 +129,7 @@ def test_adicionar_vinculando_um_ciclo_ativo(client, app):
     fazer_login(client, "fisio@teste.com", SENHA_FISIO)
     adicionar(client, id_grupo, id_paciente, id_ciclo)
 
-    assert ativas(app, id_grupo)[0].ciclo_id == id_ciclo
-
-
-def test_ciclo_encerrado_e_recusado(client, app):
-    id_fisio = id_do_usuario(app, "fisio@teste.com")
-    id_grupo = criar_grupo(app, id_fisio)
-    id_paciente = criar_paciente(app, id_fisio)
-    id_ciclo = criar_ciclo(app, id_paciente, id_fisio, status="ALTA")
-
-    fazer_login(client, "fisio@teste.com", SENHA_FISIO)
-    adicionar(client, id_grupo, id_paciente, id_ciclo)
-
-    assert ativas(app, id_grupo) == []
-
-
-def test_ciclo_de_outro_paciente_e_recusado(client, app):
-    id_fisio = id_do_usuario(app, "fisio@teste.com")
-    id_grupo = criar_grupo(app, id_fisio)
-    id_paciente = criar_paciente(app, id_fisio)
-    id_outro = criar_paciente(app, id_fisio, nome="Outro Paciente")
-    id_ciclo = criar_ciclo(app, id_outro, id_fisio)
-
-    fazer_login(client, "fisio@teste.com", SENHA_FISIO)
-    adicionar(client, id_grupo, id_paciente, id_ciclo)
-
-    assert ativas(app, id_grupo) == []
+    assert ativas(app, id_grupo)[0].ciclo_id != id_ciclo
 
 
 def test_mesmo_paciente_duas_vezes_e_recusado(client, app):
@@ -398,8 +386,8 @@ def test_formulario_tem_caixa_de_busca_de_paciente(client, app):
     assert '<datalist id="lista-de-pacientes">' in corpo
 
 
-def test_ciclos_do_formulario_sabem_de_quem_sao(client, app):
-    """Cada opção de ciclo carrega o paciente, para o filtro na tela."""
+def test_formulario_nao_pede_mais_o_ciclo(client, app):
+    """O ciclo vem do grupo; escolher um à mão só confundia o profissional."""
     id_fisio = id_do_usuario(app, "fisio@teste.com")
     id_grupo = criar_grupo(app, id_fisio)
     id_paciente = criar_paciente(app, id_fisio)
@@ -408,4 +396,5 @@ def test_ciclos_do_formulario_sabem_de_quem_sao(client, app):
     fazer_login(client, "fisio@teste.com", SENHA_FISIO)
     corpo = client.get(f"/grupos/{id_grupo}/pacientes").get_data(as_text=True)
 
-    assert f'data-paciente="{id_paciente}"' in corpo
+    assert 'name="ciclo_id"' not in corpo
+    assert "ainda não tem calendário" in corpo

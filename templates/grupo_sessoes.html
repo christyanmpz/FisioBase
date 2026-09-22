@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Encontros do grupo · FisioBase{% endblock %}
+{% block body_class %}app-page{% endblock %}
+
+{% block body %}
+    <header class="topbar">
+      <div>
+        <p class="breadcrumb">Grupos <span>/</span> {{ grupo.nome }}</p>
+        <h1>Encontros do grupo</h1>
+      </div>
+      <a class="button button--ghost" href="{{ url_for('composicao_do_grupo', grupo_id=grupo.id) }}">Voltar ao grupo</a>
+    </header>
+
+    <section class="stats-grid" aria-label="Situação do grupo">
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Encontros marcados</span>
+          <span class="stat-icon stat-icon--blue" aria-hidden="true">◎</span>
+        </div>
+        <strong class="stat-value">{{ marcados|length }}</strong>
+        <span class="stat-caption">{{ grupo.dia_semana_nome }} às {{ grupo.hora.strftime("%H:%M") if grupo.hora else "—" }}</span>
+      </article>
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Equivalem a</span>
+          <span class="stat-icon stat-icon--green" aria-hidden="true">✓</span>
+        </div>
+        <strong class="stat-value">{{ marcados|length * 2 }}</strong>
+        <span class="stat-caption">sessões individuais</span>
+      </article>
+      <article class="stat-card">
+        <div class="stat-card__top">
+          <span class="stat-label">Inscritos</span>
+          <span class="stat-icon stat-icon--yellow" aria-hidden="true">+</span>
+        </div>
+        <strong class="stat-value">{{ grupo.participacoes_ativas|length }}</strong>
+        <span class="stat-caption">de {{ grupo.capacidade_max }} vagas</span>
+      </article>
+    </section>
+
+    {% if marcados %}
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Calendário</p>
+          <h2>Datas deste grupo</h2>
+        </div>
+        <a class="button button--primary button--small"
+           href="{{ url_for('presenca_do_grupo', grupo_id=grupo.id) }}">Lista de presença</a>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Encontros marcados do grupo</caption>
+          <thead>
+            <tr>
+              <th scope="col">Encontro</th>
+              <th scope="col">Data</th>
+              <th scope="col">Horário</th>
+              <th scope="col">Sessões acumuladas</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for encontro in marcados %}
+            <tr>
+              <td class="muted-cell">{{ loop.index }} de {{ marcados|length }}</td>
+              <td><strong>{{ encontro.data.strftime("%d/%m/%Y") }}</strong></td>
+              <td class="muted-cell">{{ encontro.hora.strftime("%H:%M") }}</td>
+              <td class="muted-cell">{{ loop.index * 2 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="panel-note">
+        O calendário já está montado. Quem for inscrito daqui para a frente
+        entra nas datas que ainda faltam e recebe o cartão com elas.
+      </p>
+    </section>
+    {% else %}
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow eyebrow--muted">Tratamento fechado</p>
+          <h2>Montar o calendário</h2>
+        </div>
+      </div>
+
+      <form method="post" class="form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="field">
+          <label for="inicio">Primeiro encontro</label>
+          <input id="inicio" name="inicio" type="date" required autofocus
+                 min="{{ hoje.isoformat() }}"
+                 value="{{ valores.get('inicio', '') }}">
+          <small>
+            O grupo é {{ grupo.dia_semana_nome|lower }}
+            {% if grupo.hora %}às {{ grupo.hora.strftime("%H:%M") }}{% endif %};
+            a contagem começa nesta data.
+          </small>
+        </div>
+
+        <div class="field">
+          <label for="semanas">Quantas semanas</label>
+          <input id="semanas" name="semanas" type="number" min="1" max="52"
+                 value="{{ valores.get('semanas') or semanas_padrao }}" required>
+          <small>
+            Cada encontro dura 1 hora e vale por 2 sessões individuais.
+            O padrão da clínica são 6 semanas, que fecham 12 sessões.
+          </small>
+        </div>
+
+        <p class="panel-note">
+          Feriados cadastrados são pulados automaticamente. Os pacientes já
+          inscritos recebem o ciclo e o cartão assim que as datas nascerem.
+        </p>
+
+        <div class="form-actions">
+          <button class="button button--primary" type="submit">Gerar encontros</button>
+          <a class="button button--ghost" href="{{ url_for('composicao_do_grupo', grupo_id=grupo.id) }}">Cancelar</a>
+        </div>
+      </form>
+    </section>
+    {% endif %}
+{% endblock %}
