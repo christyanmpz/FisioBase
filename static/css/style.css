@@ -1,6 +1,13 @@
+/* Os tons de apoio seguem o minimo de contraste da norma de acessibilidade
+   (WCAG AA): 4,5:1 para texto normal. Os cinzas antigos ficavam entre 1,8 e
+   3,9 sobre o fundo claro — legiveis num monitor bom, invisiveis nos outros.
+   Os tons abaixo mantem o mesmo matiz, so mais escuros:
+     #597473  texto de apoio sobre fundo claro (4,8:1)
+     #637076  --muted, o cinza neutro                (4,9:1)
+     #7d9fa1  texto de apoio sobre a navy da lateral (4,8:1 — ali clareia) */
 :root {
   --ink: #17252d;
-  --muted: #718087;
+  --muted: #637076;
   --line: #e4eceb;
   --paper: #f7faf9;
   --white: #ffffff;
@@ -87,7 +94,7 @@ h3,
 }
 
 .eyebrow--muted {
-  color: #7c9a9b;
+  color: #597473;
 }
 
 .brand-mark {
@@ -324,6 +331,24 @@ h3,
   border-color: #b9e6d9;
 }
 
+/* Fecha o aviso na hora, para quem já leu não precisar esperar. */
+.flash-fechar {
+  padding: 0 2px;
+  border: 0;
+  margin-left: auto;
+  color: inherit;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  background: transparent;
+  opacity: 0.65;
+}
+
+.flash-fechar:hover,
+.flash-fechar:focus-visible {
+  opacity: 1;
+}
+
 .login-form {
   display: grid;
   gap: 23px;
@@ -347,7 +372,7 @@ h3,
 }
 
 .field-hint {
-  color: #9aa7a8;
+  color: #597473;
   font-size: 0.72rem;
   font-weight: 500;
 }
@@ -364,7 +389,7 @@ h3,
 }
 
 .field input::placeholder {
-  color: #aab8b8;
+  color: #647878;
 }
 
 .field input:focus {
@@ -596,7 +621,7 @@ h3,
 
 .nav-label {
   margin: 0 14px 7px;
-  color: #668b8d;
+  color: #7d9fa1;
   font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.13em;
@@ -708,13 +733,13 @@ button.nav-item:hover,
 
 .breadcrumb {
   margin-bottom: 10px;
-  color: #86a0a1;
+  color: #597473;
   font-size: 0.72rem;
 }
 
 .breadcrumb span {
   padding: 0 8px;
-  color: #b2c2c2;
+  color: #597473;
 }
 
 .topbar h1 {
@@ -729,7 +754,7 @@ button.nav-item:hover,
   align-items: center;
   gap: 8px;
   padding: 10px 13px;
-  color: #6d8586;
+  color: #597473;
   background: var(--white);
   border: 1px solid var(--line);
   border-radius: 9px;
@@ -737,7 +762,7 @@ button.nav-item:hover,
 }
 
 .date-icon {
-  color: #4eaba2;
+  color: #377872;
   font-size: 1rem;
 }
 
@@ -841,7 +866,7 @@ button.nav-item:hover,
 
 .stat-label,
 .stat-caption {
-  color: #799092;
+  color: #597473;
   font-size: 0.74rem;
 }
 
@@ -856,17 +881,17 @@ button.nav-item:hover,
 }
 
 .stat-icon--blue {
-  color: #3f858e;
+  color: #31666d;
   background: #e1f1f2;
 }
 
 .stat-icon--yellow {
-  color: #a9811e;
+  color: #866718;
   background: #fff5d2;
 }
 
 .stat-icon--green {
-  color: #278266;
+  color: #1f6b53;
   background: #def5ea;
 }
 
@@ -914,7 +939,7 @@ button.nav-item:hover,
 
 .panel-count {
   padding: 6px 9px;
-  color: #6a8888;
+  color: #597473;
   background: #f0f7f5;
   border-radius: 7px;
   font-size: 0.68rem;
@@ -934,7 +959,7 @@ table {
 
 th {
   padding: 0 12px 11px;
-  color: #91a5a6;
+  color: #597473;
   border-bottom: 1px solid var(--line);
   font-size: 0.64rem;
   font-weight: 700;
@@ -966,7 +991,7 @@ tbody tr:last-child td {
 }
 
 .muted-cell {
-  color: #7f9696;
+  color: #597473;
 }
 
 .role-badge,
@@ -980,20 +1005,100 @@ tbody tr:last-child td {
   font-weight: 700;
 }
 
+/* Estas duas continuam sendo o cargo do usuário, que é para o que foram
+   feitas. A situação do atendimento saiu daqui e tem as classes próprias
+   mais abaixo. */
 .role-badge--admin {
-  color: #886d19;
+  color: #7d6316;
   background: #fff5d7;
 }
 
 .role-badge--fisioterapeuta {
-  color: #277967;
+  color: #1f6b53;
   background: #e1f6ed;
 }
 
 .status-badge {
   padding: 0;
-  color: #4e8880;
+  color: #40736c;
   font-weight: 500;
+}
+
+/* Uma cor por situação do atendimento.
+   Antes existiam só duas: verde para "Compareceu" e âmbar para todo o
+   resto, então Agendado, Confirmado, Faltou, Falta justificada e Cancelado
+   apareciam com a mesma cara em oito telas.
+   A falta justificada fica em âmbar, e não no vermelho da falta: ela conta
+   como atendimento realizado e dá direito a reposição — pintar as duas
+   igual faria a tela contradizer a regra. */
+.situacao-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.situacao-badge--compareceu {
+  color: #1f6b53;
+  background: #e1f6ed;
+}
+
+.situacao-badge--faltou {
+  color: #962020;
+  background: #fdeaea;
+}
+
+.situacao-badge--justificada {
+  color: #7d6316;
+  background: #fff5d7;
+}
+
+.situacao-badge--cancelado {
+  color: #4d5b61;
+  background: #eef1f2;
+}
+
+.situacao-badge--agendado {
+  color: #2b5f7a;
+  background: #e4eff5;
+}
+
+.situacao-badge--confirmado {
+  color: #1f5f6b;
+  background: #dcf0f2;
+}
+
+/* O que é o atendimento, não como ele terminou. Antes o bloco do grupo
+   usava a mesma cor da sessão individual e os dois se confundiam na
+   agenda. */
+.tipo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tipo-badge--sessao {
+  color: #1f6b53;
+  background: #e1f6ed;
+}
+
+.tipo-badge--avaliacao {
+  color: #7d6316;
+  background: #fff5d7;
+}
+
+.tipo-badge--grupo {
+  color: #2b5f7a;
+  background: #e4eff5;
 }
 
 .status-badge .status-dot {
@@ -1032,7 +1137,7 @@ tbody tr:last-child td {
   width: 27px;
   height: 27px;
   place-items: center;
-  color: #91a8a7;
+  color: #5a7170;
   background: #f0f5f3;
   border: 1px solid #dae8e5;
   border-radius: 50%;
@@ -1063,13 +1168,13 @@ tbody tr:last-child td {
 }
 
 .roadmap-item div span {
-  color: #91a5a5;
+  color: #597473;
   font-size: 0.67rem;
 }
 
 .panel-note {
   padding: 13px;
-  color: #668483;
+  color: #597473;
   background: #f1f8f5;
   border-radius: 9px;
   font-size: 0.72rem;
@@ -1107,7 +1212,7 @@ tbody tr:last-child td {
 
 .empty-state p {
   margin-bottom: 0;
-  color: #799092;
+  color: #597473;
   font-size: 0.8rem;
   line-height: 1.7;
 }
@@ -1191,7 +1296,7 @@ tbody tr:last-child td {
 }
 
 .field small {
-  color: #9aa7a8;
+  color: #597473;
   font-size: 0.72rem;
 }
 
@@ -1256,6 +1361,37 @@ tbody tr:last-child td {
   align-items: center;
   gap: 6px;
   margin: 0;
+}
+
+/* Quatro botões lado a lado ocupavam 341px dos 1002px da tabela — um terço
+   da largura — e sobravam 160px para o nome do grupo, que quebrava em cinco
+   linhas. Os botões passam a ocupar duas fileiras de duas e o nome ganha um
+   piso de largura. */
+.tabela-grupos td:first-child,
+.tabela-grupos th:first-child {
+  min-width: 250px;
+}
+
+/* Dia e horário são curtos e não ganham nada em quebrar: "Quarta-feira"
+   virava duas linhas. */
+.tabela-grupos td:nth-child(3),
+.tabela-grupos td:nth-child(4) {
+  white-space: nowrap;
+}
+
+/* Grade de duas colunas em vez de quebra livre: com botões de larguras
+   diferentes, o "flex-wrap" deixava um sozinho na primeira fileira. */
+.tabela-grupos td:last-child .table-actions {
+  display: grid;
+  width: 186px;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tabela-grupos td:last-child .table-actions > *,
+.tabela-grupos td:last-child .table-actions .button {
+  width: 100%;
+  justify-content: center;
 }
 
 .table-actions select {
@@ -1490,7 +1626,7 @@ tbody tr:last-child td {
 .grade-data {
   display: block;
   margin-top: 2px;
-  color: #5c7877;
+  color: #4a6564;
   font-size: 0.72rem;
   font-weight: 500;
   letter-spacing: 0;
@@ -1613,7 +1749,16 @@ tbody tr:last-child td {
     size: landscape;
   }
 
-  body {
+  /* Duas coisas de tela que iam parar no papel: o cinza do fundo e a altura
+     de uma tela inteira. O min-height de 100vh virava uma folha cheia, que
+     saia impressa como uma ultima pagina em branco toda cinza.
+     Os tres seletores sao necessarios por especificidade: o fundo da pagina
+     e declarado em :root (0,1,0), que venceria "html" (0,0,1); e a classe
+     .app-page, que fica no <body>, venceria "body". */
+  :root,
+  body,
+  body.app-page {
+    min-height: 0;
     background: var(--white);
   }
 
@@ -1626,6 +1771,7 @@ tbody tr:last-child td {
 
   .app-shell {
     display: block;
+    min-height: 0;
   }
 
   .main-content {
@@ -1639,6 +1785,27 @@ tbody tr:last-child td {
     box-shadow: none;
   }
 
+  /* Uma linha impressa nao deve partir no meio, nem um bloco de evolucao
+     ficar orfao no pe da folha. */
+  tr,
+  .folha-sessao,
+  .historico-ciclo,
+  .roadmap-item {
+    break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  h1,
+  h2,
+  h3,
+  .folha-cabecalho,
+  .historico-ciclo__titulo {
+    break-after: avoid;
+  }
+
   .panel-heading {
     margin-bottom: 10px;
     padding: 0;
@@ -1647,6 +1814,27 @@ tbody tr:last-child td {
 
   .table-wrap {
     overflow: visible;
+  }
+
+  /* Na tela a primeira coluna e um <th> com recuo e cor de fio proprios, o
+     que no papel vira um fio quebrado no meio da linha e o rotulo mais alto
+     que os numeros ao lado. A grade semanal fica de fora: ela tem o desenho
+     de tabela dela logo abaixo. */
+  table:not(.grade) th,
+  table:not(.grade) td {
+    padding: 9px 10px;
+    border-bottom: 1px solid #c8d8d6;
+    vertical-align: baseline;
+  }
+
+  table:not(.grade) thead th {
+    border-bottom: 1.5px solid #5d7472;
+    color: #26403f;
+  }
+
+  table:not(.grade) tbody tr:last-child th,
+  table:not(.grade) tbody tr:last-child td {
+    border-bottom: 1.5px solid #5d7472;
   }
 
   .grade {
@@ -1701,10 +1889,44 @@ tbody tr:last-child td {
     background: transparent !important;
   }
 
+  /* Na tela a nota e uma caixinha com fundo esverdeado; no papel isso vira
+     um retangulo colorido sem motivo. Aqui ela volta a ser o que e: uma
+     observacao de rodape, separada por um fio. */
+  .panel-note {
+    padding: 8px 0 0;
+    border-top: 1px solid #c8d8d6;
+    border-radius: 0;
+    margin-top: 12px;
+    color: #3d5250;
+    font-size: 0.72rem;
+    background: transparent !important;
+  }
+
   .print-only {
     display: block;
-    margin-top: 10px;
+    padding: 0;
+    border: 0;
+    margin: 0 0 14px;
+    color: #5c7877;
     font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: transparent !important;
+  }
+
+  /* O carimbo do rodape ("impresso em ...") fecha a folha, e nao merece
+     destaque nenhum. */
+  .print-rodape {
+    padding-top: 8px;
+    border-top: 1px solid #c8d8d6;
+    margin-top: 16px;
+    color: #5c7877;
+    font-size: 0.68rem;
+    /* O carimbo herda o caixa-alta de .print-only, que serve para o titulo
+       curto do topo mas deixa esta linha inteira gritando. */
+    letter-spacing: normal;
+    text-transform: none;
+    background: transparent !important;
   }
 }
 
@@ -1929,7 +2151,7 @@ tbody tr:last-child td {
 }
 
 .paginacao-paginas a {
-  color: #3f858e;
+  color: #31666d;
   text-decoration: none;
 }
 

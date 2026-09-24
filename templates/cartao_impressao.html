@@ -7,7 +7,7 @@
     <header class="topbar no-print">
       <div>
         <p class="breadcrumb">{{ paciente.nome }} <span>/</span> Cartão</p>
-        <h1>Cartão do paciente</h1>
+        <h1>Cartão {{ "de grupo" if grupo else "do paciente" }}</h1>
       </div>
       <div class="table-actions">
         <a class="button button--ghost" href="{{ url_for('listar_ciclos', paciente_id=paciente.id) }}">Voltar aos ciclos</a>
@@ -19,7 +19,9 @@
       <header class="folha-cabecalho">
         <div>
           <p class="folha-marca">FisioBase</p>
-          <h2>Cartão de atendimento</h2>
+          {# O cartão de grupo saía com o mesmo título do individual, e o
+             paciente não tinha como saber de que turma eram aquelas datas. #}
+          <h2>Cartão de atendimento{{ " em grupo" if grupo }}</h2>
         </div>
         <p class="folha-emissao">Emitido em {{ emitido_em.strftime("%d/%m/%Y") }}</p>
       </header>
@@ -28,10 +30,20 @@
         <dl class="folha-dados">
           <div><dt>Paciente</dt><dd>{{ paciente.nome }}</dd></div>
           <div><dt>Profissional</dt><dd>{{ ciclo.fisioterapeuta.nome }}</dd></div>
+          {% if grupo %}
+          <div><dt>Grupo</dt><dd>{{ grupo.nome }}</dd></div>
+          <div><dt>Encontro semanal</dt>
+            <dd>
+              {{ grupo.dia_semana_nome }}
+              {%- if grupo.hora %} às {{ grupo.hora.strftime("%H:%M") }}{% endif %}
+            </dd>
+          </div>
+          {% else %}
           <div><dt>Região tratada</dt>
             <dd>{{ ciclo.regiao|capitalize if ciclo.regiao else "—" }}</dd>
           </div>
           <div><dt>Avaliação</dt><dd>{{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}</dd></div>
+          {% endif %}
         </dl>
       </section>
 
@@ -62,7 +74,16 @@
         <h3>Orientações</h3>
         <ul class="folha-lista">
           <li>Chegue com 10 minutos de antecedência e traga este cartão.</li>
+          {% if grupo %}
+          {# No grupo a data é fixa da turma inteira: não existe reposição
+             individual, e prometer isso no papel seria enganar o paciente. #}
+          <li>
+            Em caso de falta, avise a recepção. O encontro do grupo tem dia e
+            hora fixos, e não há sessão de reposição individual.
+          </li>
+          {% else %}
           <li>Em caso de falta, avise a recepção com antecedência.</li>
+          {% endif %}
           <li>Traga roupa confortável e, se usar, seus óculos ou aparelho auditivo.</li>
         </ul>
       </section>

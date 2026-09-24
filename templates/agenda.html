@@ -68,7 +68,7 @@
                 </div>
               </td>
               <td>
-                <span class="role-badge role-badge--{{ 'admin' if item.tipo == 'AVALIACAO' else 'fisioterapeuta' }}">
+                <span class="tipo-badge tipo-badge--{{ {'AVALIACAO': 'avaliacao', 'GRUPO': 'grupo'}.get(item.tipo, 'sessao') }}">
                   {% if item.tipo == "AVALIACAO" %}Avaliação
                   {%- elif item.tipo == "GRUPO" %}Grupo
                   {%- else %}Sessão{% endif %}
@@ -82,10 +82,22 @@
               <td class="muted-cell">{{ item.fisioterapeuta.nome }}</td>
               <td>
                 <div class="table-actions">
-                <form method="post" action="{{ url_for('alterar_status_agendamento', agendamento_id=item.id) }}">
-                          {% if item.paciente_id %}
-                  <a href="{{ url_for('registrar_evolucao', agendamento_id=item.id) }}">Evolução</a>
-                            {% endif %}
+                  {% if item.tipo == "GRUPO" %}
+                  {# O encontro do grupo é o bloco que segura o horário na
+                     grade, não um atendimento. A chamada é feita por inscrito
+                     na lista de presença, e nenhuma conta do sistema lê a
+                     situação deste bloco — o campo que ficava aqui não mudava
+                     nada em lugar nenhum. #}
+                  <a class="button button--ghost button--small"
+                     href="{{ url_for('presenca_do_grupo', grupo_id=item.grupo_id) }}">
+                    Lista de presença
+                  </a>
+                  <span class="muted-cell">A chamada é feita por inscrito.</span>
+                  {% else %}
+                  <form method="post" action="{{ url_for('alterar_status_agendamento', agendamento_id=item.id) }}">
+                    {% if item.paciente_id %}
+                    <a href="{{ url_for('registrar_evolucao', agendamento_id=item.id) }}">Evolução</a>
+                    {% endif %}
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <label class="sr-only" for="status-{{ item.id }}">Status do agendamento</label>
                     <select id="status-{{ item.id }}" name="status">
@@ -106,6 +118,7 @@
                            style="display:none; padding:7px 10px; border:1px solid var(--line); border-radius:8px; min-width:190px;">
                     <button class="button button--ghost button--small" type="submit">Salvar</button>
                   </form>
+                  {% endif %}
                 </div>
               </td>
             </tr>

@@ -41,7 +41,7 @@ def _cenario(app, status):
 def _etiqueta(html):
     """Devolve o texto da etiqueta de situação da linha do paciente."""
     pedaco = html[html.find("Joana Ribeiro") :]
-    abre = pedaco.find('<span class="role-badge')
+    abre = pedaco.find('<span class="situacao-badge')
     assert abre > -1, "a linha do paciente não trouxe etiqueta de situação"
     inicio = pedaco.find(">", abre) + 1
     return pedaco[inicio : pedaco.find("</span>", inicio)].strip()

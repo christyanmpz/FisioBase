@@ -13,14 +13,44 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Avisos flutuantes somem sozinhos; erros ficam até o usuário sair da tela.
+  //
+  // Eram 4 segundos, curtos demais para mensagens com números — a da
+  // inscrição no grupo diz quantos encontros e quantas sessões o paciente
+  // recebeu. Agora: 10 segundos, o relógio para enquanto o mouse está em
+  // cima ou o teclado está dentro do aviso, e há um botão para fechar na
+  // hora.
+  const TEMPO_DO_AVISO = 10000;
   const avisos = document.querySelector("[data-toast-stack]");
   if (avisos) {
     avisos.querySelectorAll(".flash").forEach((aviso) => {
-      if (aviso.classList.contains("flash--error")) return;
-      window.setTimeout(() => {
+      const fechar = document.createElement("button");
+      fechar.type = "button";
+      fechar.className = "flash-fechar";
+      fechar.setAttribute("aria-label", "Fechar aviso");
+      fechar.textContent = "×";
+
+      const sair = () => {
         aviso.classList.add("flash--saindo");
         window.setTimeout(() => aviso.remove(), 320);
-      }, 4000);
+      };
+
+      fechar.addEventListener("click", sair);
+      aviso.appendChild(fechar);
+
+      // Erro fica na tela até ser fechado no botão.
+      if (aviso.classList.contains("flash--error")) return;
+
+      let relogio = window.setTimeout(sair, TEMPO_DO_AVISO);
+      const segurar = () => window.clearTimeout(relogio);
+      const soltar = () => {
+        window.clearTimeout(relogio);
+        relogio = window.setTimeout(sair, TEMPO_DO_AVISO);
+      };
+
+      aviso.addEventListener("mouseenter", segurar);
+      aviso.addEventListener("focusin", segurar);
+      aviso.addEventListener("mouseleave", soltar);
+      aviso.addEventListener("focusout", soltar);
     });
   }
 

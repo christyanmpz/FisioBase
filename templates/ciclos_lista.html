@@ -68,13 +68,9 @@
 
               <td class="muted-cell">{{ ciclo.total_sessoes }}</td>
               <td>
-                {% if ciclo.status == "ATIVO" %}
-                <span class="role-badge role-badge--fisioterapeuta">Em tratamento</span>
-                {% else %}
-                <span class="role-badge role-badge--admin">
+                <span class="situacao-badge situacao-badge--{{ CLASSES_DE_CICLO.get(ciclo.status, 'agendado') }}">
                   {{ ROTULOS_DE_CICLO.get(ciclo.status, ciclo.status) }}
                 </span>
-                {% endif %}
               </td>
               <td>
                 <div class="table-actions">

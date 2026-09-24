@@ -103,6 +103,25 @@ ROTULOS_DE_STATUS = {
     "FALTOU": "Faltou",
     "FALTA_JUSTIFICADA": "Falta justificada",
 }
+# A cor da etiqueta de cada situação, em um lugar só. Antes cada tela
+# decidia sozinha, com um "verde se realizado, âmbar se qualquer outra
+# coisa" repetido em oito templates — e por isso faltar, cancelar e estar
+# agendado tinham exatamente a mesma cor.
+CLASSES_DE_STATUS = {
+    "AGENDADO": "agendado",
+    "CONFIRMADO": "confirmado",
+    "REALIZADO": "compareceu",
+    "CANCELADO": "cancelado",
+    "FALTOU": "faltou",
+    "FALTA_JUSTIFICADA": "justificada",
+}
+# O mesmo para a situação do ciclo de tratamento.
+CLASSES_DE_CICLO = {
+    "ATIVO": "confirmado",
+    "CONCLUIDO": "compareceu",
+    "ALTA": "compareceu",
+    "ABANDONO": "faltou",
+}
 # Nomes dos meses, para os filtros e os títulos dos relatórios.
 MESES = (
     "Janeiro",
@@ -189,6 +208,8 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     app.jinja_env.globals["ROTULOS_DE_STATUS"] = ROTULOS_DE_STATUS
     app.jinja_env.globals["ROTULOS_DE_CICLO"] = ROTULOS_DE_CICLO
+    app.jinja_env.globals["CLASSES_DE_STATUS"] = CLASSES_DE_STATUS
+    app.jinja_env.globals["CLASSES_DE_CICLO"] = CLASSES_DE_CICLO
     app.jinja_env.globals["MESES"] = MESES
     db.init_app(app)
     login_manager.init_app(app)
@@ -1492,12 +1513,23 @@ def register_routes(app: Flask) -> None:
             db.session.add(registro)
             db.session.commit()
 
+        # Num ciclo de grupo o cartão precisa dizer de qual grupo é: sem isso
+        # ele sai idêntico ao cartão individual, e o paciente não tem como
+        # saber a que turma pertencem aquelas datas.
+        grupo = None
+        if ciclo.modalidade == "GRUPO":
+            participacao = db.session.scalar(
+                db.select(GroupPatient).where(GroupPatient.ciclo_id == ciclo.id)
+            )
+            grupo = participacao.grupo if participacao else None
+
         return render_template(
             "cartao_impressao.html",
             ciclo=ciclo,
             paciente=ciclo.paciente,
             sessoes=sessoes,
             cartao=registro,
+            grupo=grupo,
             emitido_em=hoje(),
             nomes_dos_dias=WEEKDAY_NAMES,
         )
@@ -1716,6 +1748,9 @@ def register_routes(app: Flask) -> None:
             semana_anterior=segunda - timedelta(days=7),
             semana_seguinte=segunda + timedelta(days=7),
             total=len(agendamentos),
+            # O rodapé da folha dizia a segunda-feira da semana mostrada, não
+            # o dia em que a grade foi impressa.
+            emitido_em=hoje(),
         )
 
     @app.get("/agenda/dia")
@@ -2555,6 +2590,7 @@ def register_routes(app: Flask) -> None:
             por_regiao=por_regiao,
             por_horario=dict(sorted(por_horario.items())),
             por_profissional=por_profissional,
+            emitido_em=dia_atual,
         )
 
     # ------------------------------------------------------------------

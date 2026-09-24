@@ -48,7 +48,7 @@
 
       {% if grupos %}
       <div class="table-wrap">
-        <table>
+        <table class="tabela-grupos">
           <caption class="sr-only">Grupos terapêuticos cadastrados</caption>
           <thead>
             <tr>
@@ -88,9 +88,9 @@
               </td>
               <td>
                 {% if grupo.ativo %}
-                <span class="role-badge role-badge--fisioterapeuta">Ativo</span>
+                <span class="situacao-badge situacao-badge--compareceu">Ativo</span>
                 {% else %}
-                <span class="role-badge role-badge--admin">Inativo</span>
+                <span class="situacao-badge situacao-badge--cancelado">Inativo</span>
                 {% endif %}
               </td>
               <td>

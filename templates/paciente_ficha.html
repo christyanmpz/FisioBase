@@ -86,7 +86,7 @@
                 avaliação em {{ bloco.ciclo.data_avaliacao.strftime("%d/%m/%Y") }} ·
                 {{ bloco.atendimentos|length }} de {{ bloco.ciclo.total_sessoes }} sessões
               </span>
-              <span class="role-badge role-badge--{{ 'fisioterapeuta' if bloco.ciclo.status == 'ATIVO' else 'admin' }}">
+              <span class="situacao-badge situacao-badge--{{ CLASSES_DE_CICLO.get(bloco.ciclo.status, 'agendado') }}">
                 {{ ROTULOS_DE_CICLO.get(bloco.ciclo.status, bloco.ciclo.status) }}
               </span>
             {% else %}
@@ -124,7 +124,7 @@
                   </td>
                   <td class="muted-cell">{{ item.fisioterapeuta.nome }}</td>
                   <td>
-                    <span class="role-badge role-badge--{{ 'fisioterapeuta' if item.status == 'REALIZADO' else 'admin' }}">
+                    <span class="situacao-badge situacao-badge--{{ CLASSES_DE_STATUS.get(item.status, 'agendado') }}">
                       {{ ROTULOS_DE_STATUS.get(item.status, item.status) }}
                     </span>
                   </td>
@@ -240,13 +240,9 @@
               <td class="muted-cell">{{ ciclo.fisioterapeuta.nome }}</td>
               <td class="muted-cell">{{ ciclo.total_sessoes }}</td>
               <td>
-                {% if ciclo.status == "ATIVO" %}
-                <span class="role-badge role-badge--fisioterapeuta">Em tratamento</span>
-                {% else %}
-                <span class="role-badge role-badge--admin">
-                  {{ {"CONCLUIDO": "Concluído", "ALTA": "Alta", "ABANDONO": "Abandono"}[ciclo.status] }}
+                <span class="situacao-badge situacao-badge--{{ CLASSES_DE_CICLO.get(ciclo.status, 'agendado') }}">
+                  {{ ROTULOS_DE_CICLO.get(ciclo.status, ciclo.status) }}
                 </span>
-                {% endif %}
               </td>
             </tr>
             {% endfor %}

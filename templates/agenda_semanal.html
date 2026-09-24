@@ -94,8 +94,10 @@
         <span><i class="e-triagem"></i> Horário reservado para triagem</span>
       </div>
 
-      <p class="panel-note print-only">
-        Impresso em {{ dias[0].strftime("%d/%m/%Y") }} — FisioBase
+      <p class="print-rodape print-only">
+        FisioBase · {{ profissional.nome }} ·
+        semana de {{ dias[0].strftime("%d/%m/%Y") }} a {{ dias[-1].strftime("%d/%m/%Y") }} ·
+        impresso em {{ emitido_em.strftime("%d/%m/%Y") }}
       </p>
     </section>
 {% endblock %}

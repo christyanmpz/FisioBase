@@ -140,7 +140,7 @@
               <td><strong>{{ inscrito.paciente.nome }}</strong></td>
               <td class="muted-cell">{{ data.strftime("%d/%m/%Y") }}</td>
               <td>
-                <span class="role-badge role-badge--{{ 'fisioterapeuta' if presenca.status == 'REALIZADO' else 'admin' }}">
+                <span class="situacao-badge situacao-badge--{{ CLASSES_DE_STATUS.get(presenca.status, 'agendado') }}">
                   {{ ROTULOS_DE_STATUS.get(presenca.status, presenca.status) }}
                 </span>
               </td>
@@ -176,7 +176,7 @@
     </section>
     {% endif %}
 
-    <p class="panel-note print-only">
-      FisioBase — impresso em {{ emitido_em.strftime("%d/%m/%Y") }}
+    <p class="print-rodape print-only">
+      FisioBase · {{ grupo.nome }} · impresso em {{ emitido_em.strftime("%d/%m/%Y") }}
     </p>
 {% endblock %}

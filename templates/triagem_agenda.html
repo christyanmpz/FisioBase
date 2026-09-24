@@ -74,7 +74,7 @@
               </td>
               <td>
                 {% if linha.agendamento %}
-                <span class="role-badge role-badge--{{ 'fisioterapeuta' if linha.agendamento.status == 'REALIZADO' else 'admin' }}">
+                <span class="situacao-badge situacao-badge--{{ CLASSES_DE_STATUS.get(linha.agendamento.status, 'agendado') }}">
                   {{ ROTULOS_DE_STATUS.get(linha.agendamento.status, linha.agendamento.status) }}
                 </span>
                 {% else %}

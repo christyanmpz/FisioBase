@@ -52,7 +52,14 @@
       <button class="button button--ghost button--small" type="submit">Atualizar</button>
     </form>
 
-    <p class="panel-note print-only">FisioBase — resumo de atendimentos</p>
+    {# A folha impressa vai para a pasta do setor e precisa se explicar
+       sozinha: qual periodo, e de quando e a impressao. Na tela essa linha
+       nao aparece, porque o filtro logo acima ja diz o mesmo. #}
+    <p class="print-only">
+      FisioBase · resumo de atendimentos ·
+      {{ inicio.strftime("%d/%m/%Y") }} a {{ fim.strftime("%d/%m/%Y") }} ·
+      emitido em {{ emitido_em.strftime("%d/%m/%Y") }}
+    </p>
 
     <section class="panel" aria-labelledby="titulo-resumo">
       <div class="panel-heading">
