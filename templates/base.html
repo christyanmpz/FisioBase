@@ -76,6 +76,14 @@
             <span class="nav-icon" aria-hidden="true">▥</span>
             Relatórios
           </a>
+
+          {% if current_user.perfil == "ADMIN" %}
+          <p class="nav-label">Configuração</p>
+          <a class="nav-item" href="{{ url_for('listar_feriados') }}">
+            <span class="nav-icon" aria-hidden="true">▤</span>
+            Feriados
+          </a>
+          {% endif %}
         </nav>
 
         <div class="sidebar-bottom">

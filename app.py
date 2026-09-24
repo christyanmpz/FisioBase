@@ -32,6 +32,7 @@ from flask_login import (
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy.pool import NullPool
 
+from integracoes import IntegracaoIndisponivel, buscar_feriados_nacionais
 from models import (
     ADMIN_PROFILE,
     GROUP_CAPACITY_DEFAULT,
@@ -40,6 +41,7 @@ from models import (
     GROUP_REGIONS,
     GROUP_WEEKS_DEFAULT,
     GROUP_WEEKS_MAX,
+    HOLIDAY_TYPES,
     PHYSIOTHERAPIST_PROFILE,
     SESSOES_POR_ENCONTRO_DE_GRUPO,
     WEEKDAY_NAMES,
@@ -890,6 +892,194 @@ def register_routes(app: Flask) -> None:
                 "success",
             )
         return redirect(url_for("ficha_paciente", paciente_id=paciente.id))
+
+    # ------------------------------------------------------------------
+    # Feriados — integração com a BrasilAPI
+    # ------------------------------------------------------------------
+
+    @app.get("/feriados")
+    @role_required(ADMIN_PROFILE)
+    def listar_feriados():
+        """Feriados cadastrados, agrupados por ano.
+
+        A tabela já existia e cinco partes do sistema pulam essas datas ao
+        montar a agenda, mas não havia tela: até aqui, só dava para inserir
+        feriado rodando SQL no banco à mão.
+        """
+        dia_atual = hoje()
+        feriados = Holiday.query.order_by(Holiday.data).all()
+
+        por_ano = {}
+        for feriado in feriados:
+            por_ano.setdefault(feriado.data.year, []).append(feriado)
+
+        return render_template(
+            "feriados.html",
+            por_ano=dict(sorted(por_ano.items(), reverse=True)),
+            total=len(feriados),
+            anos_para_importar=[dia_atual.year, dia_atual.year + 1],
+            nomes_dos_dias=WEEKDAY_NAMES,
+            # A BrasilAPI só traz os nacionais; os outros são da clínica.
+            tipos_manuais=[t for t in HOLIDAY_TYPES if t != "NACIONAL"],
+            hoje=dia_atual,
+        )
+
+    @app.post("/feriados/importar")
+    @role_required(ADMIN_PROFILE)
+    def importar_feriados():
+        """Traz da BrasilAPI os feriados nacionais de um ano.
+
+        Importar o mesmo ano de novo é seguro: o que já existe é contado
+        como repetido e nada é duplicado. Isso importa porque a coluna
+        `data` é única no banco — sem a conferência, a segunda importação
+        estouraria.
+        """
+
+        def voltar():
+            return redirect(url_for("listar_feriados"))
+
+        try:
+            ano = int(request.form.get("ano", "").strip())
+        except ValueError:
+            flash("Informe um ano válido.", "error")
+            return voltar()
+
+        try:
+            encontrados = buscar_feriados_nacionais(ano)
+        except ValueError as erro:
+            flash(str(erro), "error")
+            return voltar()
+        except IntegracaoIndisponivel as erro:
+            # O sistema não para por causa disso: os feriados já importados
+            # continuam valendo e a agenda segue normal.
+            flash(
+                f"{erro} Os feriados já cadastrados continuam valendo — "
+                "tente importar de novo mais tarde.",
+                "error",
+            )
+            return voltar()
+
+        ja_cadastrados = {
+            feriado.data
+            for feriado in Holiday.query.filter(
+                Holiday.data >= date(ano, 1, 1),
+                Holiday.data <= date(ano, 12, 31),
+            ).all()
+        }
+
+        novos = 0
+        for item in encontrados:
+            if item["data"] in ja_cadastrados:
+                continue
+            db.session.add(
+                Holiday(data=item["data"], nome=item["nome"], tipo="NACIONAL")
+            )
+            novos += 1
+        db.session.commit()
+
+        repetidos = len(encontrados) - novos
+        if novos:
+            flash(
+                f"{novos} feriado(s) de {ano} importado(s) da BrasilAPI"
+                + (f"; {repetidos} já estava(m) cadastrado(s)." if repetidos else "."),
+                "success",
+            )
+        else:
+            flash(
+                f"Os {repetidos} feriados nacionais de {ano} já estavam "
+                "cadastrados. Nada foi alterado.",
+                "info",
+            )
+        return voltar()
+
+    @app.post("/feriados")
+    @role_required(ADMIN_PROFILE)
+    def cadastrar_feriado():
+        """Cadastra uma data que a BrasilAPI não traz.
+
+        É o caso do ponto facultativo do servidor e da emenda: quando a
+        secretaria muda o 28/10 para o 26/10 para juntar com o fim de
+        semana, nenhuma API sabe disso — quem sabe é a clínica.
+
+        A data cadastrada só vale para as próximas gerações de sessão. Se já
+        houver atendimento marcado naquele dia, a mensagem diz quantos são,
+        porque cadastrar o feriado não desmarca ninguém.
+        """
+
+        def voltar():
+            return redirect(url_for("listar_feriados"))
+
+        texto = request.form.get("data", "").strip()
+        nome = request.form.get("nome", "").strip()
+        tipo = request.form.get("tipo", "").strip().upper()
+
+        try:
+            dia = date.fromisoformat(texto)
+        except ValueError:
+            flash("Informe uma data válida.", "error")
+            return voltar()
+
+        if not nome:
+            flash("Informe o nome do feriado ou do ponto facultativo.", "error")
+            return voltar()
+
+        if tipo not in HOLIDAY_TYPES:
+            flash("Tipo de feriado inválido.", "error")
+            return voltar()
+
+        # A coluna `data` é única: sem esta conferência o banco recusaria.
+        existente = db.session.scalar(db.select(Holiday).where(Holiday.data == dia))
+        if existente is not None:
+            flash(
+                f"{dia.strftime('%d/%m/%Y')} já está cadastrado como "
+                f"{existente.nome}. Remova antes de cadastrar outro.",
+                "error",
+            )
+            return voltar()
+
+        db.session.add(Holiday(data=dia, nome=nome[:150], tipo=tipo))
+        db.session.commit()
+
+        # O bloco do grupo não é atendimento de ninguém: quem conta é a
+        # presença de cada inscrito, que já entra na conta abaixo.
+        marcados = Appointment.query.filter(
+            Appointment.data == dia,
+            Appointment.status != "CANCELADO",
+            Appointment.tipo != "GRUPO",
+        ).count()
+
+        recado = f"{nome} cadastrado em {dia.strftime('%d/%m/%Y')}."
+        if marcados:
+            flash(
+                f"{recado} Atenção: já existem {marcados} atendimento(s) "
+                f"marcado(s) nesse dia — o cadastro não desmarca ninguém. "
+                f"Abra a agenda do dia para remarcar.",
+                "info",
+            )
+        else:
+            flash(f"{recado} A agenda passa a pular essa data.", "success")
+        return voltar()
+
+    @app.post("/feriados/<int:feriado_id>/remover")
+    @role_required(ADMIN_PROFILE)
+    def remover_feriado(feriado_id: int):
+        """Tira um feriado da lista.
+
+        Não mexe em agendamento nenhum: a data só volta a ser oferecida nas
+        próximas gerações de sessões.
+        """
+        feriado = db.session.get(Holiday, feriado_id)
+        if feriado is None:
+            abort(404)
+
+        rotulo = f"{feriado.data.strftime('%d/%m/%Y')} — {feriado.nome}"
+        db.session.delete(feriado)
+        db.session.commit()
+        flash(
+            f"Feriado removido: {rotulo}. As sessões já marcadas não mudaram.",
+            "success",
+        )
+        return redirect(url_for("listar_feriados"))
 
     # ------------------------------------------------------------------
     # Usuários

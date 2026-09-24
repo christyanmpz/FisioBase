@@ -1313,6 +1313,24 @@ tbody tr:last-child td {
   box-shadow: 0 8px 28px rgba(40, 80, 80, 0.035);
 }
 
+/* Formulário curto que mora dentro de um painel: os campos ficam lado a
+   lado e sem a moldura própria, que duplicaria a do painel. */
+.form--linha {
+  display: grid;
+  max-width: none;
+  padding: 0;
+  border: 0;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  align-items: end;
+  box-shadow: none;
+  background: transparent;
+}
+
+.form--linha .field button {
+  width: 100%;
+}
+
 .form-actions {
   display: flex;
   align-items: center;
@@ -1441,6 +1459,18 @@ tbody tr:last-child td {
 .day-nav a:hover {
   color: var(--navy);
   background: #f0f7f5;
+}
+
+/* Sem isto o seletor de ano fica do tamanho padrão do navegador, miúdo ao
+   lado do botão. */
+.day-nav select {
+  padding: 9px 12px;
+  color: var(--ink);
+  background: var(--white);
+  border: 1px solid #d9e3e2;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 0.8rem;
 }
 
 @media (max-width: 980px) {

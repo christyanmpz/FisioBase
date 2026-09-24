@@ -254,14 +254,30 @@ class GroupPatient(db.Model):
         return self.data_saida is None
 
 
+# Espelham as restrições da tabela feriados no banco.
+HOLIDAY_TYPES = ("NACIONAL", "ESTADUAL", "MUNICIPAL", "FACULTATIVO")
+
+
 class Holiday(db.Model):
-    """Feriado ou ponto facultativo: o dia é pulado ao gerar as sessões."""
+    """Feriado ou ponto facultativo: o dia é pulado ao gerar as sessões.
+
+    O banco já traz UNIQUE em `data` e um CHECK em `tipo` desde o esquema
+    original; aqui eles faltavam. Sem isso, importar o mesmo ano duas vezes
+    passava nos testes (SQLite cria a tabela a partir deste arquivo) e
+    quebrava em produção, contra o PostgreSQL de verdade.
+    """
 
     __tablename__ = "feriados"
+    __table_args__ = (
+        db.CheckConstraint(
+            "tipo IN ('NACIONAL', 'ESTADUAL', 'MUNICIPAL', 'FACULTATIVO')",
+            name="chk_feriado_tipo",
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
-    data = db.Column(db.Date, nullable=False, index=True)
-    nome = db.Column(db.String(120), nullable=False)
+    data = db.Column(db.Date, nullable=False, unique=True, index=True)
+    nome = db.Column(db.String(150), nullable=False)
     tipo = db.Column(db.String(20), nullable=False, default="NACIONAL")
 
 

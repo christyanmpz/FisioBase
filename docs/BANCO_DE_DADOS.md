@@ -198,8 +198,16 @@ profissional, e remover desativa em vez de apagar.
 ### feriados
 
 Datas que a geração automática pula. O campo `tipo` distingue `NACIONAL`,
-`MUNICIPAL` e `FACULTATIVO`. Os nacionais de 2026 e 2027 são carregados por
-script; os demais são inseridos manualmente, porque variam por cidade.
+`ESTADUAL`, `MUNICIPAL` e `FACULTATIVO`, e a coluna `data` é única.
+
+Os nacionais são importados pela tela **Configuração › Feriados**, que
+consulta a [BrasilAPI](https://brasilapi.com.br) — serviço público e
+gratuito, sem cadastro nem chave. A importação é idempotente: repetir o
+mesmo ano não duplica nada. Se a API estiver fora do ar, a tela avisa e o
+sistema segue com os feriados já cadastrados.
+
+Municipais e pontos facultativos variam por cidade, a API não os traz, e
+continuam sendo inseridos direto no banco.
 
 ### cartoes
 
