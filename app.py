@@ -168,6 +168,27 @@ STATUS_SO_A_PARTIR_DO_DIA = ("REALIZADO",)
 FUSO_CLINICA = ZoneInfo("America/Sao_Paulo")
 
 
+def _com_driver_explicito(url: str) -> str:
+    """Diz na string de conexão qual driver PostgreSQL usar.
+
+    Em 24/09/2026 a produção caiu com `ModuleNotFoundError: No module named
+    'psycopg'`. A causa não estava no código: o SQLAlchemy 2.1 mudou o driver
+    padrão de `postgresql://` de psycopg2 para psycopg (versão 3), e o
+    requirements.txt não fixava a versão do SQLAlchemy. Bastou uma publicação
+    qualquer para o Vercel reinstalar as dependências e trazer a 2.1.
+
+    Dizer `postgresql+psycopg2://` tira essa decisão das mãos da biblioteca:
+    o driver passa a ser o que está no requirements.txt, e uma versão nova do
+    SQLAlchemy não muda mais o comportamento sozinha.
+
+    Aceita também o `postgres://` antigo, que alguns painéis ainda geram.
+    """
+    for prefixo in ("postgres://", "postgresql://"):
+        if url.startswith(prefixo):
+            return "postgresql+psycopg2://" + url[len(prefixo) :]
+    return url
+
+
 def create_app(test_config: dict | None = None) -> Flask:
     app = Flask(__name__)
     app.config.from_mapping(
@@ -190,8 +211,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                 "SESSION_SECRET não está configurada; a aplicação não iniciará sem uma chave de sessão."
             )
 
-        if database_url.startswith("postgres://"):
-            database_url = "postgresql://" + database_url[len("postgres://") :]
+        database_url = _com_driver_explicito(database_url)
 
         app.config.update(
             SECRET_KEY=session_secret,

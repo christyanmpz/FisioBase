@@ -182,7 +182,7 @@ removê-las ou submetê-las às mesmas regras do formulário.
 
 ## Testes
 
-Os 454 testes rodam em SQLite na memória, criado e destruído a cada teste. Isso
+Os 461 testes rodam em SQLite na memória, criado e destruído a cada teste. Isso
 os torna rápidos e independentes do Supabase, mas cria uma diferença conhecida:
 as restrições `CHECK` e as chaves estrangeiras do PostgreSQL não são todas
 reproduzidas. Por isso as regras críticas são validadas também no código da

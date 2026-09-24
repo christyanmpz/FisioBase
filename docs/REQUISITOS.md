@@ -79,7 +79,7 @@ e estão justificados no fim desta página.
 | RNF06 | Datas devem respeitar o fuso do Brasil, mesmo com servidor em UTC | Função `hoje()` com `America/Sao_Paulo` |
 | RNF07 | O sistema deve ser acessível pelo navegador, sem instalação | Aplicação web publicada na Vercel |
 | RNF08 | A interface deve funcionar em tela pequena | Layout responsivo, com barra lateral adaptável |
-| RNF09 | As regras de negócio devem ser verificáveis automaticamente | 454 testes automatizados com pytest |
+| RNF09 | As regras de negócio devem ser verificáveis automaticamente | 461 testes automatizados com pytest |
 | RNF10 | Alterações não podem quebrar o que já funciona | Testes rodam antes de cada publicação |
 | RNF11 | Listas longas não podem degradar a navegação | Paginação de 20 por página e busca com sugestões |
 | RNF12 | As folhas impressas devem sair sem os elementos de navegação | Folha de estilo específica para impressão |

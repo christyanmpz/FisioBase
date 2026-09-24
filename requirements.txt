@@ -5,4 +5,10 @@ Flask-WTF==1.3.0
 gunicorn==26.2.0
 psycopg2-binary==2.9.12
 python-dotenv==1.2.3
+# Fixada de propósito. O Flask-SQLAlchemy aceita qualquer 2.x, e sem esta
+# linha o Vercel instalava a mais nova a cada publicação. Em 24/09/2026 isso
+# derrubou a produção: a 2.1 trocou o driver padrão de psycopg2 para psycopg,
+# que não está instalado. Subir para a 2.1 exige trocar o psycopg2-binary
+# por psycopg[binary] e testar antes.
+SQLAlchemy==2.0.54
 tzdata==2026.3

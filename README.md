@@ -240,7 +240,7 @@ A aplicação sobe em `http://localhost:5000`, ou na porta definida em `PORT`.
 python -m pytest -q
 ```
 
-São **454 testes** em 34 arquivos, que rodam em SQLite na memória. Não abrem
+São **461 testes** em 35 arquivos, que rodam em SQLite na memória. Não abrem
 conexão com o Supabase e não tocam em dado real. A chamada à BrasilAPI é
 substituída por uma resposta simulada.
 
@@ -280,6 +280,7 @@ substituída por uma resposta simulada.
 | `test_visual_situacoes.py` | Uma cor por situação | 17 |
 | `test_contraste_e_avisos.py` | Contraste do texto e aviso flutuante | 22 |
 | `test_documentacao.py` | Rotas, tabelas e contagens desta documentação | 19 |
+| `test_conexao.py` | Driver do banco na string de conexão | 7 |
 
 ## Banco de dados
 
@@ -476,7 +477,7 @@ FisioBase/
 ├── static/
 │   ├── css/style.css
 │   └── js/app.js
-└── tests/                 # 454 testes em 34 arquivos
+└── tests/                 # 461 testes em 35 arquivos
 ```
 
 ## Documentação do projeto
