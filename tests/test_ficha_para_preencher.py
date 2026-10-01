@@ -331,3 +331,59 @@ def test_agendamento_inexistente_devolve_404(client, app, monkeypatch):
     fazer_login(client, "admin@teste.com", SENHA_ADMIN)
 
     assert imprimir(client, 90210).status_code == 404
+
+
+# --------------------------------------------------------------------
+# Quantas linhas cabem na folha
+# --------------------------------------------------------------------
+#
+# Estas contagens não são gosto: foram medidas renderizando a ficha com
+# DM Sans, a fonte real do sistema, numa folha A4 com as margens da
+# @page retrato (12mm). Com elas, a ficha da sessão fecha em UMA folha,
+# com 37px de sobra, e a da avaliação em duas, com a quebra forçada
+# antes do diagnóstico.
+#
+# Uma linha de pauta mede 23px. Acrescentar duas na ficha da sessão já
+# empurra o rodapé para uma segunda folha quase vazia — foi o que
+# aconteceu em 01/10/2026, porque a medição tinha sido feita num
+# ambiente sem a fonte instalada, com um substituto mais baixo.
+#
+# Então: para mudar qualquer número daqui, meça de novo com a fonte
+# certa. Não ajuste o teste para passar.
+
+
+def pautas(html):
+    """Quantos <span> tem cada bloco pautado, na ordem da folha."""
+    return [
+        bloco.count("<span>") for bloco in html.split('<div class="ficha-pauta">')[1:]
+    ]
+
+
+def test_a_ficha_da_sessao_cabe_em_uma_folha(client, app, monkeypatch):
+    fixar_hoje(monkeypatch)
+    ids = montar(app, tipo="SESSAO")
+    fazer_login(client, "fisio@teste.com", SENHA_FISIO)
+
+    html = imprimir(client, ids["agendamento"]).get_data(as_text=True)
+
+    # Subjetivo, Objetivo, Avaliação, Plano, Intercorrências.
+    assert pautas(html) == [2, 1, 3, 4, 1], (
+        "a ficha da sessão foi medida para fechar em uma folha; "
+        "mudou o número de linhas, meça de novo com DM Sans"
+    )
+
+
+def test_a_ficha_da_avaliacao_cabe_em_duas_folhas(client, app, monkeypatch):
+    fixar_hoje(monkeypatch)
+    ids = montar(app, tipo="AVALIACAO")
+    fazer_login(client, "fisio@teste.com", SENHA_FISIO)
+
+    html = imprimir(client, ids["agendamento"]).get_data(as_text=True)
+
+    # Folha 1: queixa, história, inspeção, exames complementares.
+    # Folha 2: diagnóstico e plano, depois da quebra forçada.
+    assert pautas(html) == [2, 8, 5, 2, 11, 18], (
+        "a ficha da avaliação foi medida para fechar em duas folhas; "
+        "mudou o número de linhas, meça de novo com DM Sans"
+    )
+    assert "ficha-folha-2" in html, "a quebra de página da folha 2 sumiu"
