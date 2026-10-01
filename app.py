@@ -1220,6 +1220,54 @@ def register_routes(app: Flask) -> None:
             "tratamento só é aberto depois disso."
         )
 
+    def _avaliacoes_para_vincular(paciente):
+        """Avaliações a que o paciente compareceu, da mais recente para trás.
+
+        É a lista que o formulário do ciclo oferece: a clínica pediu que o
+        tratamento aponte para a avaliação que o justifica, em vez de guardar
+        só uma data digitada à mão.
+
+        Entram as avaliações comparecidas — incluindo a falta justificada,
+        que a clínica conta como atendimento. Pode vir vazia: quem entrou
+        pela porta do grupo é avaliado no primeiro encontro e não tem
+        agendamento de avaliação nenhum.
+        """
+        return (
+            Appointment.query.filter(
+                Appointment.paciente_id == paciente.id,
+                Appointment.tipo == "AVALIACAO",
+                Appointment.status.in_(STATUS_DE_ATENDIMENTO),
+            )
+            .order_by(Appointment.data.desc(), Appointment.hora.desc())
+            .all()
+        )
+
+    def _avaliacao_escolhida(paciente, enviado):
+        """Confere o que veio do formulário e devolve (avaliação, erro).
+
+        A avaliação tem que ser do próprio paciente: sem esta checagem um
+        POST montado à mão ligaria o tratamento de um paciente à avaliação
+        de outro, e o prontuário passaria a mentir.
+        """
+        enviado = (enviado or "").strip()
+        if not enviado:
+            return None, None
+
+        try:
+            avaliacao = db.session.get(Appointment, int(enviado))
+        except ValueError:
+            return None, "Selecione uma avaliação válida."
+
+        if (
+            avaliacao is None
+            or avaliacao.tipo != "AVALIACAO"
+            or avaliacao.paciente_id != paciente.id
+            or avaliacao.status not in STATUS_DE_ATENDIMENTO
+        ):
+            return None, "Selecione uma avaliação válida deste paciente."
+
+        return avaliacao, None
+
     @app.route("/pacientes/<int:paciente_id>/ciclos/novo", methods=["GET", "POST"])
     @login_required
     def novo_ciclo(paciente_id: int):
@@ -1234,11 +1282,14 @@ def register_routes(app: Flask) -> None:
             flash(impedimento, "error")
             return redirect(url_for("agendar_triagem"))
 
+        avaliacoes = _avaliacoes_para_vincular(paciente)
+
         def form(codigo=200):
             return (
                 render_template(
                     "ciclo_form.html",
                     paciente=paciente,
+                    avaliacoes=avaliacoes,
                     fisioterapeutas=_fisioterapeutas_ativos(),
                 ),
                 codigo,
@@ -1256,13 +1307,31 @@ def register_routes(app: Flask) -> None:
                 flash("Modalidade inválida.", "error")
                 return form(400)
 
-            try:
-                data_avaliacao = date.fromisoformat(
-                    request.form.get("data_avaliacao", "").strip()
-                )
-            except ValueError:
-                flash("Informe uma data de avaliação válida.", "error")
+            # A avaliação escolhida manda na data: ela é o atendimento que
+            # justifica o tratamento, e repetir a data à mão só criaria
+            # chance de divergir do prontuário.
+            avaliacao, erro = _avaliacao_escolhida(
+                paciente, request.form.get("avaliacao_id")
+            )
+            if erro:
+                flash(erro, "error")
                 return form(400)
+
+            if avaliacao is not None:
+                data_avaliacao = avaliacao.data
+            elif avaliacoes:
+                flash("Selecione a avaliação que justifica este tratamento.", "error")
+                return form(400)
+            else:
+                # Sem avaliação na lista — caso do paciente que entrou pelo
+                # grupo. A data continua sendo digitada, como antes.
+                try:
+                    data_avaliacao = date.fromisoformat(
+                        request.form.get("data_avaliacao", "").strip()
+                    )
+                except ValueError:
+                    flash("Informe uma data de avaliação válida.", "error")
+                    return form(400)
 
             try:
                 sessoes = int(request.form.get("total_sessoes", "10").strip())
@@ -1294,6 +1363,7 @@ def register_routes(app: Flask) -> None:
                 diagnostico=request.form.get("diagnostico", "").strip() or None,
                 modalidade=modalidade,
                 data_avaliacao=data_avaliacao,
+                avaliacao_id=avaliacao.id if avaliacao else None,
                 total_sessoes=sessoes,
                 status="ATIVO",
                 observacoes=request.form.get("observacoes", "").strip() or None,
@@ -1316,6 +1386,7 @@ def register_routes(app: Flask) -> None:
             abort(403)
 
         paciente = ciclo.paciente
+        avaliacoes = _avaliacoes_para_vincular(paciente)
 
         def form(codigo=200):
             return (
@@ -1323,6 +1394,7 @@ def register_routes(app: Flask) -> None:
                     "ciclo_form.html",
                     ciclo=ciclo,
                     paciente=paciente,
+                    avaliacoes=avaliacoes,
                     fisioterapeutas=_fisioterapeutas_ativos(),
                 ),
                 codigo,
@@ -1342,13 +1414,27 @@ def register_routes(app: Flask) -> None:
             flash("Modalidade inválida.", "error")
             return form(400)
 
-        try:
-            data_avaliacao = date.fromisoformat(
-                request.form.get("data_avaliacao", "").strip()
-            )
-        except ValueError:
-            flash("Informe uma data de avaliação válida.", "error")
+        # Na edição a escolha é opcional: o ciclo de grupo e os abertos antes
+        # desta coluna não têm avaliação a apontar, e obrigar a escolha aqui
+        # travaria a correção de todos eles. Quando vem uma, ela manda na
+        # data; quando não vem, a data continua sendo digitada.
+        avaliacao, erro = _avaliacao_escolhida(
+            paciente, request.form.get("avaliacao_id")
+        )
+        if erro:
+            flash(erro, "error")
             return form(400)
+
+        if avaliacao is not None:
+            data_avaliacao = avaliacao.data
+        else:
+            try:
+                data_avaliacao = date.fromisoformat(
+                    request.form.get("data_avaliacao", "").strip()
+                )
+            except ValueError:
+                flash("Informe uma data de avaliação válida.", "error")
+                return form(400)
 
         try:
             sessoes = int(request.form.get("total_sessoes", "10").strip())
@@ -1380,6 +1466,7 @@ def register_routes(app: Flask) -> None:
         ciclo.diagnostico = request.form.get("diagnostico", "").strip() or None
         ciclo.modalidade = modalidade
         ciclo.data_avaliacao = data_avaliacao
+        ciclo.avaliacao_id = avaliacao.id if avaliacao else None
         ciclo.total_sessoes = sessoes
         ciclo.observacoes = request.form.get("observacoes", "").strip() or None
         db.session.commit()
@@ -2843,6 +2930,41 @@ def register_routes(app: Flask) -> None:
         if acessa_sessao and sessao_aceita and evolucao.editavel_por(usuario):
             return "editar"
         return "ver"
+
+    @app.get("/agendamentos/<int:agendamento_id>/ficha")
+    @login_required
+    def ficha_em_branco(agendamento_id: int):
+        """Folha de papel para o fisioterapeuta preencher à mão.
+
+        A clínica pediu que o registro clínico pudesse ser feito no papel ou
+        na tela, a critério do profissional. O sistema entra com o que já
+        sabe — identificação do paciente, ciclo, data e número da sessão — e
+        deixa o resto pautado.
+
+        O conteúdo segue a Resolução COFFITO nº 414/2012, que lista o que o
+        prontuário fisioterapêutico tem que conter. A ficha muda conforme o
+        atendimento: a da avaliação cobre história clínica, exame físico,
+        diagnóstico e plano terapêutico; a da sessão segue o modelo SOAP,
+        que é como se registra a evolução de cada atendimento.
+
+        Diferente da evolução digital, esta tela **não** é bloqueada por
+        sessão futura, falta ou cancelamento: imprimir a ficha antes do
+        atendimento, para levar na mão, é justamente o uso dela.
+        """
+        agendamento = db.session.get(Appointment, agendamento_id)
+        if agendamento is None or agendamento.paciente_id is None:
+            abort(404)
+        if not agendamento.acessivel_por(current_user):
+            abort(403)
+
+        return render_template(
+            "ficha_evolucao.html",
+            agendamento=agendamento,
+            paciente=agendamento.paciente,
+            ciclo=agendamento.ciclo,
+            emitido_em=hoje(),
+            nomes_dos_dias=WEEKDAY_NAMES,
+        )
 
     @app.route("/agendamentos/<int:agendamento_id>/evolucao", methods=["GET", "POST"])
     @login_required

@@ -18,6 +18,13 @@
       </div>
       <div class="table-actions">
         <a class="button button--ghost" href="{{ url_for('ficha_paciente', paciente_id=agendamento.paciente_id) }}">Voltar à ficha</a>
+        {# Quem prefere escrever à mão imprime a folha pautada em vez de
+           digitar. O registro continua valendo: a ficha preenchida é
+           anexada ao prontuário. #}
+        <a class="button button--ghost"
+           href="{{ url_for('ficha_em_branco', agendamento_id=agendamento.id) }}">
+          Ficha para preencher à mão
+        </a>
         {% if evolucao %}
         <button class="button button--primary" type="button" onclick="window.print()">Imprimir</button>
         {% endif %}

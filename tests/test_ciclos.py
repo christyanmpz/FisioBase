@@ -39,9 +39,30 @@ def criar_paciente(app, nome, fisioterapeuta_id, avaliado=True):
         return paciente.id
 
 
+def avaliacao_do_paciente(client, paciente_id):
+    """O id da avaliação comparecida do paciente, ou None se não houver."""
+    with client.application.app_context():
+        return db.session.scalar(
+            db.select(Appointment.id)
+            .where(
+                Appointment.paciente_id == paciente_id,
+                Appointment.tipo == "AVALIACAO",
+                Appointment.status == "REALIZADO",
+            )
+            .order_by(Appointment.data.desc())
+        )
+
+
 def abrir_ciclo(client, paciente_id, **campos):
+    """Abre o ciclo pelo formulário, já vinculado à avaliação do paciente.
+
+    Desde a etapa 7 o formulário exige a avaliação que justifica o
+    tratamento quando o paciente tem alguma comparecida. Quem quiser testar
+    o envio sem vínculo passa `avaliacao_id=""`.
+    """
     dados = {
         "data_avaliacao": "2026-09-01",
+        "avaliacao_id": avaliacao_do_paciente(client, paciente_id) or "",
         "regiao": "JOELHO",
         "modalidade": "INDIVIDUAL",
         "total_sessoes": "10",
@@ -93,21 +114,41 @@ def test_regiao_invalida_e_recusada(client, app):
     fazer_login(client, "fisio@teste.com", SENHA_FISIO)
     resposta = client.post(
         f"/pacientes/{id_paciente}/ciclos/novo",
-        data={"data_avaliacao": "2026-09-01", "regiao": "COTOVELO"},
+        data={
+            "data_avaliacao": "2026-09-01",
+            "avaliacao_id": avaliacao_do_paciente(client, id_paciente),
+            "regiao": "COTOVELO",
+        },
     )
     assert resposta.status_code == 400
 
 
 def test_data_invalida_nao_derruba_a_pagina(client, app):
+    """A data digitada à mão só vale quando não há avaliação a escolher,
+    então é com uma avaliação válida escolhida que a data inválida chega
+    aqui — e aí ela é ignorada, porque quem manda é a avaliação."""
     id_fisio = id_do_usuario(app, "fisio@teste.com")
     id_paciente = criar_paciente(app, "Ana Lima", id_fisio)
 
     fazer_login(client, "fisio@teste.com", SENHA_FISIO)
     resposta = client.post(
         f"/pacientes/{id_paciente}/ciclos/novo",
-        data={"data_avaliacao": "31/02/2026", "regiao": "JOELHO"},
+        data={
+            "data_avaliacao": "31/02/2026",
+            "avaliacao_id": avaliacao_do_paciente(client, id_paciente),
+            "regiao": "JOELHO",
+            "modalidade": "INDIVIDUAL",
+            "total_sessoes": "10",
+        },
+        follow_redirects=True,
     )
-    assert resposta.status_code == 400
+
+    assert resposta.status_code == 200
+    with app.app_context():
+        ciclo = db.session.scalar(
+            db.select(TreatmentCycle).where(TreatmentCycle.paciente_id == id_paciente)
+        )
+        assert ciclo.data_avaliacao == date(2026, 9, 1), "a data veio da avaliação"
 
 
 def test_numero_de_sessoes_fora_do_limite_e_recusado(client, app):
@@ -119,6 +160,7 @@ def test_numero_de_sessoes_fora_do_limite_e_recusado(client, app):
         f"/pacientes/{id_paciente}/ciclos/novo",
         data={
             "data_avaliacao": "2026-09-01",
+            "avaliacao_id": avaliacao_do_paciente(client, id_paciente),
             "regiao": "JOELHO",
             "total_sessoes": "999",
         },

@@ -63,7 +63,18 @@ achar quem não lembra o CPF.
 ciclo*. O ciclo define a região tratada (ombro, joelho, coluna ou outro), a
 modalidade, o CID, o diagnóstico e o total de sessões, normalmente 10.
 
-O ciclo **só pode ser aberto depois de o paciente comparecer a uma avaliação**.
+O ciclo **só pode ser aberto depois de o paciente comparecer a uma avaliação**,
+e a primeira coisa que o formulário pede é **qual avaliação justifica este
+tratamento** — a lista traz as avaliações comparecidas do paciente, com data,
+hora e profissional. A data da avaliação vem do atendimento escolhido, não é
+digitada. Uma mesma avaliação pode justificar mais de um ciclo, para quando o
+fisioterapeuta encontra duas queixas na mesma consulta.
+
+Dois casos ficam sem esse vínculo, de propósito: os ciclos abertos antes desta
+versão, que não têm como saber a qual avaliação pertencem, e os ciclos de
+grupo, em que a avaliação acontece no primeiro encontro. Eles aparecem como
+*sem avaliação vinculada* e podem ser corrigidos um a um pelo *Editar*.
+
 Um paciente pode ter mais de um ciclo ativo ao mesmo tempo.
 
 **5. Agendar.** Menu *Agenda → Novo agendamento*, ou o botão *Gerar sessões* no
@@ -145,8 +156,25 @@ Grupos não são excluídos, apenas desativados.
 | Prontuário completo | Ficha do paciente → *Imprimir prontuário* |
 | Resumo do grupo | Grupo → *Resumo* |
 | Resumo de atendimentos | Relatórios → *Imprimir resumo* |
+| Ficha em branco para preencher à mão | Evolução → *Ficha para preencher à mão* |
 
 A folha de evolução de uma sessão também sai pela tela da própria evolução.
+
+**Ficha para preencher à mão.** Registrar a evolução na tela é opcional: quem
+prefere escrever no papel imprime a ficha pautada pelo botão *Evolução*, tanto
+da avaliação quanto da sessão. O sistema preenche a identificação — paciente,
+nascimento, CPF, cartão cidadão, profissional, data, dia da semana, região, CID
+e número da sessão — e deixa o resto pautado. O conteúdo segue a Resolução
+COFFITO nº 414/2012: a ficha da avaliação cobre queixa, história clínica, exame
+físico-funcional (com régua de dor e tabela de amplitude e força), exames
+complementares, diagnóstico, prognóstico e plano terapêutico; a da sessão segue
+o modelo SOAP, com intercorrências. Depois de preenchida, a ficha é anexada ao
+prontuário do paciente.
+
+Diferente da evolução digital, a ficha não é bloqueada por sessão futura, falta
+ou cancelamento — imprimir antes do atendimento, para levar na mão, é justamente
+o uso dela. Na ficha do paciente, a sessão que ainda não aceita evolução mostra
+o link *Ficha* na coluna Evolução.
 
 O cartão de um ciclo de grupo sai identificado como tal, com o nome da turma, o
 encontro semanal e o aviso de que não há reposição individual.
@@ -240,7 +268,7 @@ A aplicação sobe em `http://localhost:5000`, ou na porta definida em `PORT`.
 python -m pytest -q
 ```
 
-São **461 testes** em 35 arquivos, que rodam em SQLite na memória. Não abrem
+São **499 testes** em 37 arquivos, que rodam em SQLite na memória. Não abrem
 conexão com o Supabase e não tocam em dado real. A chamada à BrasilAPI é
 substituída por uma resposta simulada.
 
@@ -281,6 +309,8 @@ substituída por uma resposta simulada.
 | `test_contraste_e_avisos.py` | Contraste do texto e aviso flutuante | 22 |
 | `test_documentacao.py` | Rotas, tabelas e contagens desta documentação | 19 |
 | `test_conexao.py` | Driver do banco na string de conexão | 7 |
+| `test_ficha_para_preencher.py` | Ficha em branco da avaliação e da sessão | 16 |
+| `test_avaliacao_do_ciclo.py` | Vínculo entre o ciclo e a avaliação | 22 |
 
 ## Banco de dados
 
@@ -297,6 +327,12 @@ Tabelas: `usuarios`, `pacientes`, `ciclos_tratamento`, `grupos`,
 A tabela `presencas` **não é usada**: a presença no grupo é um agendamento, com
 `grupo_id` e `paciente_id` preenchidos. O motivo está em
 [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md).
+
+`ciclos_tratamento.avaliacao_id` aponta para o agendamento de avaliação que
+justifica o tratamento. Aceita nulo — ciclo de grupo e ciclos abertos antes
+desta coluna não têm a quem apontar — e não tem restrição de unicidade, porque
+uma avaliação pode justificar mais de um ciclo. É `ON DELETE SET NULL`: apagar
+a avaliação tira o vínculo, nunca o tratamento.
 
 O diagrama e a descrição de cada tabela estão em
 [`docs/BANCO_DE_DADOS.md`](docs/BANCO_DE_DADOS.md).
@@ -415,6 +451,8 @@ login.
 | `/agenda/novo` | GET, POST | Novo agendamento |
 | `/agendamentos/<id>/status` | POST | Altera a situação |
 | `/agendamentos/<id>/evolucao` | GET, POST | Evolução clínica |
+| `/agendamentos/<id>/ficha` | GET | Ficha em branco para preencher à mão |
+| `/agendamentos/<id>/ficha` | GET | Ficha em branco para preencher à mão |
 
 ### Triagem
 
@@ -473,11 +511,11 @@ FisioBase/
 ├── pytest.ini
 ├── docs/                  # documentação do Projeto Integrador
 ├── sql/                   # alterações de esquema, uma por etapa
-├── templates/             # 34 templates Jinja
+├── templates/             # 35 templates Jinja
 ├── static/
 │   ├── css/style.css
 │   └── js/app.js
-└── tests/                 # 461 testes em 35 arquivos
+└── tests/                 # 499 testes em 37 arquivos
 ```
 
 ## Documentação do projeto

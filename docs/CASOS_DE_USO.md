@@ -44,6 +44,7 @@
      └──────────┘       │  │ UC19 Imprimir grades           │  │
                         │  │ UC20 Imprimir prontuário       │  │
                         │  │ UC21 Imprimir resumo do grupo  │  │
+                        │  │ UC26 Imprimir ficha em branco  │  │
                         │  └────────────────────────────────┘  │
                         │                                      │
                         │  CONFIGURAÇÃO                        │
@@ -127,17 +128,29 @@ Pode não haver ciclo nenhum.
 **Pré-condição:** o paciente já compareceu a uma avaliação.
 
 **Fluxo principal**
-1. O usuário escolhe a região, a modalidade, a data da avaliação, o CID, o
-   diagnóstico e o total de sessões.
-2. O sistema herda o responsável do paciente.
-3. O ciclo é aberto com situação ativa.
+1. O sistema lista as avaliações a que o paciente compareceu, com data, hora e
+   profissional, e o usuário escolhe a que justifica este tratamento.
+2. O usuário escolhe a região, a modalidade, o CID, o diagnóstico e o total de
+   sessões.
+3. O sistema grava o vínculo e tira a data da avaliação do atendimento
+   escolhido.
+4. O sistema herda o responsável do paciente.
+5. O ciclo é aberto com situação ativa.
 
 **Fluxos alternativos**
 - Paciente sem avaliação registrada: o sistema recusa e orienta a marcar a
   triagem primeiro.
+- Paciente que entrou pelo grupo, avaliado no primeiro encontro: não há
+  avaliação a escolher, e a data é digitada.
+- Avaliação que não é do paciente, ou que não é uma avaliação comparecida: o
+  sistema recusa e devolve o formulário com o erro.
 
-**Regra:** um paciente pode ter mais de um ciclo ativo, por exemplo joelho e
-coluna.
+**Regras**
+- Um paciente pode ter mais de um ciclo ativo, por exemplo joelho e coluna.
+- Uma mesma avaliação pode justificar mais de um ciclo, para quando o
+  fisioterapeuta encontra duas queixas na mesma consulta.
+- O vínculo é corrigível pelo *Editar* do ciclo (UC08), por onde também se
+  amarram os ciclos abertos antes desta versão.
 
 ## UC05 — Agendar atendimento
 
@@ -199,6 +212,27 @@ coluna.
 **Fluxos alternativos**
 - Sessão com falta, cancelada ou futura: o registro é recusado com explicação.
 - Usuário com acesso ao paciente, mas não à sessão: vê em modo somente leitura.
+- O profissional prefere escrever à mão: segue para UC26.
+
+## UC26 — Imprimir a ficha para preencher à mão
+
+**Ator:** ambos.
+**Pré-condição:** o atendimento é de um paciente e está no escopo do usuário.
+
+**Fluxo principal**
+1. Na tela da evolução, ou na coluna *Evolução* da ficha do paciente, o usuário
+   pede a ficha.
+2. O sistema monta a folha com a identificação já preenchida e o restante
+   pautado, na forma que corresponde ao atendimento: avaliação ou sessão.
+3. O usuário imprime, preenche à mão e anexa ao prontuário.
+
+**Regras**
+- O conteúdo segue a Resolução COFFITO nº 414/2012: a ficha da avaliação cobre
+  queixa, história clínica, exame físico-funcional, exames complementares,
+  diagnóstico, prognóstico e plano terapêutico; a da sessão segue o modelo SOAP.
+- Diferente de UC07, a ficha **não** é bloqueada por sessão futura, falta ou
+  cancelamento: imprimir antes do atendimento é o uso principal dela.
+- O sigilo é o mesmo do prontuário: quem não acessa o atendimento recebe 403.
 
 ## UC08 — Editar e remarcar o ciclo
 
@@ -206,7 +240,10 @@ coluna.
 **Pré-condição:** ciclo ativo.
 
 **Fluxo principal**
-1. O usuário corrige região, modalidade, CID, diagnóstico ou total de sessões.
+1. O usuário corrige região, modalidade, CID, diagnóstico, total de sessões ou
+   a avaliação vinculada — é por aqui que os ciclos abertos antes do vínculo
+   passam a apontar para a avaliação que os justifica, e por aqui que um
+   vínculo errado é desfeito.
 2. Para mudar o dia ou o horário do tratamento, usa *Remarcar*: informa a nova
    data inicial, o horário e os dias da semana.
 3. O sistema move as **sessões futuras**, respeitando feriado e limite por
@@ -474,3 +511,4 @@ agendado permanece até alguém remarcar.
 | UC23 Trocar responsável | sim | não |
 | UC24 Definir horários de triagem | qualquer profissional | apenas os seus |
 | UC25 Manter feriados | sim | não |
+| UC26 Imprimir ficha em branco | todos | apenas os seus |

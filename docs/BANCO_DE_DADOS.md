@@ -28,11 +28,11 @@ Editor e é alterado manualmente; a aplicação não executa migrações.
      │ cpf (uniq)  │   │ regiao           │   │ regiao     │  │paciente_id│
      │ data_nasc.  │   │ modalidade       │   │dia_semana  │  │agendam_id│
      │ telefone    │   │ data_avaliacao   │   │ hora       │  │ data     │
-     │ cid         │   │ total_sessoes    │   │capac_max   │  │descricao │
-     │ diagnostico │   │ status           │   │ ativo      │  │evolucao  │
-     │ ativo       │   │ data_alta        │   └─────┬──────┘  └────┬─────┘
-     │fisiot_id(FK)│   └────────┬─────────┘         │              │
-     └──────┬──────┘            │                   │              │
+     │ cid         │   │ avaliacao_id (FK)│   │capac_max   │  │descricao │
+     │ diagnostico │   │ total_sessoes    │   │ ativo      │  │evolucao  │
+     │ ativo       │   │ status           │   └─────┬──────┘  └────┬─────┘
+     │fisiot_id(FK)│   │ data_alta        │         │              │
+     └──────┬──────┘   └────────┬─────────┘         │              │
             │                   │                   │              │
             │         ┌─────────┴───────────────────┴───┐          │
             │         │        agendamentos             │◄─────────┘
@@ -67,6 +67,12 @@ Editor e é alterado manualmente; a aplicação não executa migrações.
      │  participação ativa)│
      └────────────────────┘
 ```
+
+`ciclos_tratamento` e `agendamentos` se referenciam nos dois sentidos, e o
+desenho acima mostra só um deles: `agendamentos.ciclo_id` diz a que tratamento
+a sessão pertence, e `ciclos_tratamento.avaliacao_id` diz qual avaliação
+justifica o tratamento. As duas aceitam nulo, então não há ovo e galinha ao
+gravar.
 
 ## Dicionário de dados
 
@@ -115,7 +121,8 @@ mesmo tempo, por exemplo joelho e coluna.
 | `cid` | varchar(30) | Código do diagnóstico que justifica este ciclo |
 | `diagnostico` | text | Justificativa clínica, como veio do médico |
 | `modalidade` | varchar(20) | `INDIVIDUAL` ou `GRUPO` |
-| `data_avaliacao` | date | |
+| `data_avaliacao` | date | Vem do agendamento apontado por `avaliacao_id`; digitada à mão só quando não há vínculo |
+| `avaliacao_id` | integer | FK para `agendamentos`, `ON DELETE SET NULL`. A avaliação que justifica o tratamento. Nulo em ciclo de grupo e nos ciclos abertos antes da etapa 7; sem unicidade, porque uma avaliação pode justificar mais de um ciclo |
 | `total_sessoes` | integer | Normalmente 10 |
 | `status` | varchar(20) | `ATIVO`, `CONCLUIDO`, `ALTA` ou `ABANDONO` |
 | `data_alta` | date | Preenchida no encerramento |

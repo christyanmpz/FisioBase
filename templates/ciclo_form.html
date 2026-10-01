@@ -16,12 +16,51 @@
     <form method="post" class="form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
+      {# A clínica pediu que o tratamento aponte para a avaliação que o
+         justifica. Quando o paciente tem avaliação comparecida, a data vem
+         dela; a digitação à mão sobra só para quem entrou pelo grupo, que é
+         avaliado no primeiro encontro e não tem agendamento de avaliação. #}
+      {% if avaliacoes %}
+      <div class="field">
+        <label for="avaliacao_id">Avaliação que justifica o tratamento</label>
+        <select id="avaliacao_id" name="avaliacao_id"
+                {% if not edicao %}required autofocus{% endif %}>
+          <option value="">
+            {{ "Nenhuma — informar a data abaixo" if edicao else "Selecione a avaliação" }}
+          </option>
+          {% for avaliacao in avaliacoes %}
+          <option value="{{ avaliacao.id }}"
+                  {% if edicao and ciclo.avaliacao_id == avaliacao.id %}selected{% endif %}>
+            {{ avaliacao.data.strftime("%d/%m/%Y") }} às
+            {{ avaliacao.hora.strftime("%H:%M") }} ·
+            {{ avaliacao.fisioterapeuta.nome }}
+          </option>
+          {% endfor %}
+        </select>
+        <small class="field-hint">
+          A data do ciclo vem deste atendimento. A mesma avaliação pode
+          justificar mais de um ciclo.
+        </small>
+      </div>
+      {% endif %}
+
+      {% if not avaliacoes or edicao %}
       <div class="field">
         <label for="data_avaliacao">Data da avaliação</label>
-        <input id="data_avaliacao" name="data_avaliacao" type="date" required
-               {% if not edicao %}autofocus{% endif %}
+        <input id="data_avaliacao" name="data_avaliacao" type="date"
+               {% if not avaliacoes %}required{% endif %}
+               {% if not edicao and not avaliacoes %}autofocus{% endif %}
                value="{{ ciclo.data_avaliacao.isoformat() if edicao else '' }}">
+        <small class="field-hint">
+          {% if avaliacoes %}
+          Vale só se nenhuma avaliação for escolhida acima.
+          {% else %}
+          Este paciente não tem avaliação comparecida registrada no sistema —
+          é o caso de quem entrou pelo grupo, avaliado no primeiro encontro.
+          {% endif %}
+        </small>
       </div>
+      {% endif %}
 
       <div class="field">
         <label for="regiao">Região</label>

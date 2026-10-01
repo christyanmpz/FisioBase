@@ -994,6 +994,25 @@ tbody tr:last-child td {
   color: #597473;
 }
 
+/* Referência da avaliação que justifica o ciclo, embaixo da data. Linha
+   própria para a data continuar sendo o que se lê primeiro. O #597473 é o
+   mesmo cinza do resto das tabelas, medido em 4,8:1 sobre o branco. */
+.vinculo-avaliacao {
+  display: block;
+  margin-top: 2px;
+  color: #597473;
+  font-size: 0.7rem;
+  font-weight: 500;
+  /* Sem isto a linha quebra em três dentro da coluna estreita e empurra a
+     altura da tabela toda. O nome de quem avaliou fica no title. */
+  white-space: nowrap;
+}
+
+.vinculo-avaliacao em {
+  font-style: normal;
+  color: #7a6a3e;
+}
+
 .role-badge,
 .status-badge {
   display: inline-flex;
@@ -2121,6 +2140,154 @@ tbody tr:last-child td {
 .folha-linha {
   display: block;
   border-top: 1px solid #5d7472;
+}
+
+/* ------------------------------------------------------------------ */
+/* Ficha em branco, para o fisioterapeuta preencher à mão              */
+/* ------------------------------------------------------------------ */
+
+/* A folha de estilo de impressão do sistema é paisagem, por causa da
+   grade semanal. Uma ficha clínica de preencher à mão é retrato: é o
+   formato que o setor arquiva, e em pé cabe mais linha por página. */
+@page retrato {
+  size: portrait;
+  margin: 12mm 14mm;
+}
+
+.ficha {
+  page: retrato;
+}
+
+/* O respiro entre blocos é o que sobra para cortar: a ficha da sessão é
+   impressa todo dia e tem que caber numa folha só. Espaço de escrita não
+   se mexe — um formulário sem lugar para escrever não serve. */
+/* Abre a segunda folha da ficha de avaliação num ponto escolhido, em vez
+   de onde o texto calhar de estourar. Só vale na impressão. */
+@media print {
+  .ficha-folha-2 {
+    break-before: page;
+  }
+}
+
+.ficha .folha-bloco {
+  margin-bottom: 10px;
+  break-inside: avoid;
+}
+
+/* A identificação é a única parte já preenchida: ela informa, não é
+   para escrever em cima. Compacta aqui para sobrar papel onde o
+   fisioterapeuta de fato escreve. */
+.ficha .folha-dados {
+  gap: 7px 22px;
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+}
+
+.ficha .folha-dados div {
+  padding-bottom: 3px;
+}
+
+.ficha .folha-dados dd {
+  font-size: 0.82rem;
+}
+
+.ficha-dica {
+  margin: 0 0 5px;
+  color: #597473;
+  font-size: 0.72rem;
+}
+
+/* Pauta: uma linha por span, para a folha poder quebrar entre páginas
+   sem cortar nenhuma no meio. Altura generosa — quem escreve à mão
+   precisa de mais espaço do que o texto digitado ocupa. */
+.ficha-pauta {
+  display: grid;
+  gap: 0;
+}
+
+.ficha-pauta span {
+  display: block;
+  height: 23px;
+  border-bottom: 1px solid #c8d8d6;
+}
+
+/* Escala de dor: os números ficam dentro de círculos para o profissional
+   marcar o que o paciente relatou. */
+.ficha-medidas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+  margin-bottom: 12px;
+}
+
+.ficha-rotulo {
+  display: block;
+  margin-bottom: 4px;
+  color: #26403f;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.ficha-escala {
+  display: flex;
+  gap: 5px;
+}
+
+.ficha-escala i {
+  display: grid;
+  width: 21px;
+  height: 21px;
+  place-items: center;
+  border: 1px solid #8fa5a3;
+  border-radius: 50%;
+  color: #3d5250;
+  font-size: 0.66rem;
+  font-style: normal;
+}
+
+/* Tabela para preencher: as células precisam de altura, senão saem como
+   um fio só. */
+.ficha-tabela {
+  margin-bottom: 12px;
+}
+
+.ficha-tabela tbody td {
+  height: 24px;
+}
+
+.ficha-assinatura {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 40px;
+  margin-top: 26px;
+  break-inside: avoid;
+}
+
+.ficha-assinatura p {
+  margin: 6px 0 0;
+  color: #3d5250;
+  font-size: 0.76rem;
+  text-align: center;
+}
+
+.ficha-crefito {
+  color: #597473;
+  font-size: 0.7rem;
+}
+
+/* Ajuste fino: sem estas quatro linhas, a ficha da sessão fecha o
+   conteúdo na primeira página e joga só o carimbo do rodapé para a
+   segunda — uma folha inteira gasta por 20 pixels. */
+.ficha .folha-cabecalho {
+  padding-bottom: 10px;
+  margin-bottom: 14px;
+}
+
+.ficha .ficha-assinatura {
+  margin-top: 16px;
+}
+
+.ficha .print-rodape {
+  margin-top: 9px;
 }
 
 @media print {

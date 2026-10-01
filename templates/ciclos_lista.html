@@ -40,7 +40,26 @@
           <tbody>
             {% for ciclo in ciclos %}
             <tr>
-              <td><strong>{{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}</strong></td>
+              <td>
+                <strong>{{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}</strong>
+                {# A referência vai como texto, não como link: a triagem pode
+                   ter sido feita por outro profissional, e aí a tela da
+                   evolução dela estaria fechada para quem abre o ciclo.
+                   Na coluna cabe só a hora; o nome de quem avaliou fica no
+                   title para o mouse e no texto escondido para o leitor de
+                   tela, e sai por extenso no prontuário impresso. #}
+                {% if ciclo.avaliacao %}
+                <span class="vinculo-avaliacao"
+                      title="Avaliação de {{ ciclo.avaliacao.data.strftime('%d/%m/%Y') }} às {{ ciclo.avaliacao.hora.strftime('%H:%M') }}, por {{ ciclo.avaliacao.fisioterapeuta.nome }}">
+                  vinculada · {{ ciclo.avaliacao.hora.strftime("%H:%M") }}
+                  <span class="sr-only">
+                    , avaliação feita por {{ ciclo.avaliacao.fisioterapeuta.nome }}
+                  </span>
+                </span>
+                {% else %}
+                <span class="vinculo-avaliacao"><em>sem vínculo</em></span>
+                {% endif %}
+              </td>
               <td>{{ ciclo.regiao|capitalize }}</td>
               <td class="muted-cell">{{ ciclo.cid or "—" }}</td>
               <td class="muted-cell">{{ ciclo.modalidade|capitalize }}</td>

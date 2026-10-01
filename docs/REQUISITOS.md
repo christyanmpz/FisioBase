@@ -59,13 +59,15 @@ e estão justificados no fim desta página.
 | RF38 | Ciclo só pode ser aberto depois de o paciente comparecer a uma avaliação | Implementado |
 | RF39 | Importação dos feriados nacionais de uma fonte externa | Implementado |
 | RF40 | Cadastro de ponto facultativo, feriado municipal e emenda | Implementado |
+| RF41 | Ficha em branco para o fisioterapeuta registrar a evolução à mão | Implementado |
+| RF42 | Ciclo de tratamento referenciando a avaliação que o justifica | Implementado |
 
 ### Trabalho futuro
 
 | Código | Requisito | Por que não foi feito |
 | --- | --- | --- |
-| RF41 | Consulta pública das próprias datas por link, sem login | Expor dado de paciente em link aberto é risco de LGPD. Precisa de decisão da clínica sobre o que mostrar e por quanto tempo o link vale |
-| RF42 | Integração com Google Agenda e envio de lembrete por e-mail | Depende de conta institucional e de política sobre mensagem automática a paciente |
+| RF43 | Consulta pública das próprias datas por link, sem login | Expor dado de paciente em link aberto é risco de LGPD. Precisa de decisão da clínica sobre o que mostrar e por quanto tempo o link vale |
+| RF44 | Integração com Google Agenda e envio de lembrete por e-mail | Depende de conta institucional e de política sobre mensagem automática a paciente |
 
 ## Requisitos não funcionais
 
@@ -79,7 +81,7 @@ e estão justificados no fim desta página.
 | RNF06 | Datas devem respeitar o fuso do Brasil, mesmo com servidor em UTC | Função `hoje()` com `America/Sao_Paulo` |
 | RNF07 | O sistema deve ser acessível pelo navegador, sem instalação | Aplicação web publicada na Vercel |
 | RNF08 | A interface deve funcionar em tela pequena | Layout responsivo, com barra lateral adaptável |
-| RNF09 | As regras de negócio devem ser verificáveis automaticamente | 461 testes automatizados com pytest |
+| RNF09 | As regras de negócio devem ser verificáveis automaticamente | 499 testes automatizados com pytest |
 | RNF10 | Alterações não podem quebrar o que já funciona | Testes rodam antes de cada publicação |
 | RNF11 | Listas longas não podem degradar a navegação | Paginação de 20 por página e busca com sugestões |
 | RNF12 | As folhas impressas devem sair sem os elementos de navegação | Folha de estilo específica para impressão |
@@ -116,6 +118,8 @@ e estão justificados no fim desta página.
 | RN23 | O bloco do grupo na agenda segura o horário, mas não é atendimento. Quem conta é a presença de cada inscrito |
 | RN24 | Fora da urgência, a avaliação é marcada em um dos horários fixos de triagem do profissional |
 | RN25 | A urgência é encaixe fora da grade de triagem e exige o motivo registrado |
+| RN26 | O ciclo aponta para a avaliação que o justifica, e a data da avaliação vem desse atendimento. Uma mesma avaliação pode justificar mais de um ciclo; o ciclo de grupo não tem vínculo, porque a avaliação acontece no primeiro encontro |
+| RN27 | O registro clínico pode ser digital ou à mão, a critério do profissional. A ficha em branco sai pela tela da evolução e, ao contrário do registro digital, não é barrada por sessão futura, falta ou cancelamento |
 
 ## Rastreabilidade
 
@@ -130,3 +134,5 @@ direto:
 | RN24, RN25 — triagem | `test_triagem.py` |
 | RN17 e RF39, RF40 — feriados e integração | `test_feriados.py` |
 | RNF13, RNF14 — contraste e cores | `test_contraste_e_avisos.py`, `test_visual_situacoes.py` |
+| RN26 e RF42 — vínculo do ciclo com a avaliação | `test_avaliacao_do_ciclo.py` |
+| RN27 e RF41 — ficha para preencher à mão | `test_ficha_para_preencher.py` |

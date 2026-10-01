@@ -57,10 +57,26 @@ def marcar_avaliacao(app, id_paciente, id_fisio, status="REALIZADO", dia=HOJE):
 
 
 def abrir_ciclo(client, id_paciente):
+    """Abre o ciclo pelo formulário, vinculado à avaliação do paciente.
+
+    Desde a etapa 7 o formulário exige a avaliação que justifica o
+    tratamento. Quando o paciente não tem nenhuma comparecida o campo vai
+    vazio — é o cenário dos testes que conferem a trava da avaliação.
+    """
+    with client.application.app_context():
+        id_avaliacao = db.session.scalar(
+            db.select(Appointment.id).where(
+                Appointment.paciente_id == id_paciente,
+                Appointment.tipo == "AVALIACAO",
+                Appointment.status.in_(("REALIZADO", "FALTA_JUSTIFICADA")),
+            )
+        )
+
     return client.post(
         f"/pacientes/{id_paciente}/ciclos/novo",
         data={
             "data_avaliacao": "2026-09-01",
+            "avaliacao_id": id_avaliacao or "",
             "regiao": "JOELHO",
             "modalidade": "INDIVIDUAL",
             "total_sessoes": "10",

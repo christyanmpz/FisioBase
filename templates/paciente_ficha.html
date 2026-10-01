@@ -136,7 +136,11 @@
                       {{ {"registrar": "Registrar", "editar": "Editar", "ver": "Ver"}[acao] }}
                     </a>
                     {% else %}
-                    <span class="muted-cell">—</span>
+                    {# Sessão futura não aceita evolução digital, mas é
+                       exatamente quando se imprime a folha para levar. #}
+                    <a href="{{ url_for('ficha_em_branco', agendamento_id=item.id) }}">
+                      Ficha
+                    </a>
                     {% endif %}
                   </td>
 
@@ -234,7 +238,20 @@
           <tbody>
             {% for ciclo in ciclos %}
             <tr>
-              <td><strong>{{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}</strong></td>
+              <td>
+                <strong>{{ ciclo.data_avaliacao.strftime("%d/%m/%Y") }}</strong>
+                {% if ciclo.avaliacao %}
+                <span class="vinculo-avaliacao"
+                      title="Avaliação de {{ ciclo.avaliacao.data.strftime('%d/%m/%Y') }} às {{ ciclo.avaliacao.hora.strftime('%H:%M') }}, por {{ ciclo.avaliacao.fisioterapeuta.nome }}">
+                  vinculada · {{ ciclo.avaliacao.hora.strftime("%H:%M") }}
+                  <span class="sr-only">
+                    , avaliação feita por {{ ciclo.avaliacao.fisioterapeuta.nome }}
+                  </span>
+                </span>
+                {% else %}
+                <span class="vinculo-avaliacao"><em>sem vínculo</em></span>
+                {% endif %}
+              </td>
               <td>{{ ciclo.regiao|capitalize }}</td>
               <td class="muted-cell">{{ ciclo.modalidade|capitalize }}</td>
               <td class="muted-cell">{{ ciclo.fisioterapeuta.nome }}</td>

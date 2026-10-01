@@ -116,6 +116,26 @@ class TreatmentCycle(db.Model):
     diagnostico = db.Column(db.Text, nullable=True)
     modalidade = db.Column(db.String(20), nullable=False, default="INDIVIDUAL")
     data_avaliacao = db.Column(db.Date, nullable=False)
+    # A avaliação que justifica este tratamento. A clínica pediu que o ciclo
+    # aponte para o atendimento de avaliação, não só para a data dele.
+    #
+    # Aceita nulo de propósito: os ciclos abertos antes desta coluna não têm
+    # como saber a qual avaliação pertencem, e o ciclo de grupo não tem
+    # avaliação própria — no grupo ela acontece no primeiro encontro.
+    #
+    # ON DELETE SET NULL: apagar a avaliação tira o vínculo, nunca o
+    # tratamento. Sem unicidade: uma avaliação pode justificar mais de um
+    # ciclo quando o fisioterapeuta encontra dois problemas na mesma consulta.
+    # use_alter: ciclo aponta para agendamento e agendamento aponta para
+    # ciclo. Sem isto o SQLAlchemy não consegue ordenar as tabelas para
+    # apagar no fim de cada teste e avisa a cada execução. No Supabase o
+    # esquema é criado pelos arquivos de sql/, não por aqui.
+    avaliacao_id = db.Column(
+        db.Integer,
+        db.ForeignKey("agendamentos.id", ondelete="SET NULL", use_alter=True),
+        nullable=True,
+        index=True,
+    )
     total_sessoes = db.Column(db.Integer, nullable=False, default=10)
     status = db.Column(db.String(20), nullable=False, default="ATIVO")
     data_alta = db.Column(db.Date, nullable=True)
@@ -126,6 +146,11 @@ class TreatmentCycle(db.Model):
 
     paciente = db.relationship("Patient", backref="ciclos")
     fisioterapeuta = db.relationship("User", backref="ciclos")
+    avaliacao = db.relationship(
+        "Appointment",
+        foreign_keys=[avaliacao_id],
+        backref=db.backref("ciclos_justificados", viewonly=True),
+    )
 
     def acessivel_por(self, usuario) -> bool:
         """Um ADMIN vê qualquer ciclo; um fisioterapeuta, só os seus."""
@@ -325,7 +350,12 @@ class Appointment(db.Model):
 
     paciente = db.relationship("Patient", backref="agendamentos")
     grupo = db.relationship("Group", backref="agendamentos")
-    ciclo = db.relationship("TreatmentCycle", backref="agendamentos")
+    # foreign_keys explícito: desde que o ciclo passou a apontar para a sua
+    # avaliação, existem dois caminhos entre agendamentos e ciclos_tratamento
+    # e o SQLAlchemy não tem como escolher sozinho.
+    ciclo = db.relationship(
+        "TreatmentCycle", backref="agendamentos", foreign_keys=[ciclo_id]
+    )
     fisioterapeuta = db.relationship("User", backref="agendamentos")
 
     def acessivel_por(self, usuario) -> bool:

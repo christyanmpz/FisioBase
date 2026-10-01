@@ -74,6 +74,20 @@
               <td>{{ ROTULOS_DE_CICLO.get(ciclo.status, ciclo.status) }}</td>
               <td>{{ ciclo.data_alta.strftime("%d/%m/%Y") if ciclo.data_alta else "—" }}</td>
             </tr>
+            {# A avaliação que justifica o tratamento, escrita por extenso:
+               no papel não há link para seguir, e é esta referência que
+               prende o ciclo ao atendimento que o originou. #}
+            {% if ciclo.avaliacao %}
+            <tr>
+              <td colspan="8" class="folha-diagnostico">
+                <strong>Avaliação de referência:</strong>
+                {{ ciclo.avaliacao.data.strftime("%d/%m/%Y") }} às
+                {{ ciclo.avaliacao.hora.strftime("%H:%M") }}, por
+                {{ ciclo.avaliacao.fisioterapeuta.nome }}
+                (atendimento nº {{ ciclo.avaliacao.id }}).
+              </td>
+            </tr>
+            {% endif %}
             {% if ciclo.diagnostico %}
             <tr>
               <td colspan="8" class="folha-diagnostico">
